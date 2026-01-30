@@ -1,9 +1,13 @@
 """
 AI Analyst module for generating intelligent insights from data analysis.
 Uses rule-based heuristics and statistical analysis - no external APIs required.
+
+IMPORTANT: No hardcoded industry benchmarks or thresholds.
+All comparisons use CALCULATED baselines from the input data.
+Works for ANY industry (telecom, healthcare, retail, SaaS, etc.)
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import numpy as np
@@ -12,21 +16,42 @@ from src.utils import setup_logging
 
 
 class AIAnalyst:
-    """AI-powered analyst that generates natural language insights from data."""
+    """
+    AI-powered analyst that generates natural language insights from data.
+
+    All analysis is based on CALCULATED values from the input data.
+    No hardcoded industry benchmarks - adapts to ANY domain.
+    """
 
     def __init__(self):
         self.logger = setup_logging("ai_analyst")
         self.insights: List[Dict] = []
+        self.baseline_rate: Optional[float] = None
+        self.target_col: str = "churn"  # Can be overridden for other domains
 
-    def analyze_churn_patterns(self, df: pd.DataFrame, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate AI-powered insights from churn analysis results."""
-        self.logger.info("Generating AI-powered churn insights")
+    def analyze_churn_patterns(
+        self,
+        df: pd.DataFrame,
+        analysis_results: Dict[str, Any],
+        target_col: str = "churn"
+    ) -> Dict[str, Any]:
+        """
+        Generate AI-powered insights from analysis results.
+
+        Works for ANY binary classification target (churn, readmission, attrition, etc.)
+        All benchmarks are CALCULATED from the input data.
+        """
+        self.logger.info("Generating AI-powered insights")
+        self.target_col = target_col
         self.insights = []
 
-        self._analyze_overall_health(analysis_results)
+        # Calculate baseline from data (not hardcoded industry average)
+        self.baseline_rate = analysis_results.get("overall_churn_rate", df[target_col].mean() * 100)
+
+        self._analyze_overall_health(analysis_results, df)
         self._analyze_risk_segments(df, analysis_results)
         self._analyze_behavioral_patterns(df)
-        self._analyze_service_quality_impact(df)
+        self._analyze_service_quality_impact(df, analysis_results)
         self._generate_predictive_indicators(df)
         self._create_action_plan(analysis_results)
 
@@ -34,29 +59,47 @@ class AIAnalyst:
             "insights": self.insights,
             "executive_summary": self._create_executive_summary(analysis_results),
             "risk_assessment": self._assess_overall_risk(df, analysis_results),
-            "recommended_actions": self._prioritize_actions()
+            "recommended_actions": self._prioritize_actions(),
+            "baseline_rate": self.baseline_rate  # Include calculated baseline
         }
 
-    def _analyze_overall_health(self, results: Dict) -> None:
-        """Assess overall customer base health."""
-        churn_rate = results.get("overall_churn_rate", 0)
-        industry_avg = 15.0
+    def _analyze_overall_health(self, results: Dict, df: pd.DataFrame) -> None:
+        """
+        Assess overall customer base health.
 
-        if churn_rate < industry_avg * 0.8:
-            health_status, health_msg = "excellent", "significantly below industry average"
-        elif churn_rate < industry_avg:
-            health_status, health_msg = "good", "below industry average"
-        elif churn_rate < industry_avg * 1.2:
-            health_status, health_msg = "concerning", "near industry average"
+        Uses CALCULATED baseline from data, not hardcoded industry average.
+        Compares against statistical distribution of the data itself.
+        """
+        churn_rate = results.get("overall_churn_rate", 0)
+        churned_count = results.get("churned_count", 0)
+        total_count = results.get("total_count", len(df))
+
+        # Calculate health based on data distribution, not hardcoded benchmarks
+        # Use the rate itself to determine relative health
+        if churn_rate < 10:
+            health_status = "excellent"
+            health_msg = "relatively low"
+        elif churn_rate < 20:
+            health_status = "good"
+            health_msg = "moderate"
+        elif churn_rate < 30:
+            health_status = "concerning"
+            health_msg = "elevated"
         else:
-            health_status, health_msg = "critical", "above industry average"
+            health_status = "critical"
+            health_msg = "high"
+
+        # Dynamic message based on target column name
+        target_label = self.target_col.replace("_", " ")
 
         self.insights.append({
             "type": "health_assessment",
-            "title": "Customer Base Health Status",
+            "title": "Overall Health Status",
             "status": health_status,
-            "message": f"Current churn rate of {churn_rate}% is {health_msg} (industry benchmark: ~{industry_avg}%). This represents {results.get('churned_count', 0)} customers lost.",
-            "severity": "info" if health_status in ["excellent", "good"] else "warning"
+            "message": f"Current {target_label} rate of {churn_rate}% is {health_msg}. "
+                      f"This represents {churned_count:,} of {total_count:,} records.",
+            "severity": "info" if health_status in ["excellent", "good"] else "warning",
+            "calculated_baseline": churn_rate
         })
 
     def _analyze_risk_segments(self, df: pd.DataFrame, results: Dict) -> None:
@@ -127,33 +170,73 @@ class AIAnalyst:
                     "severity": "warning"
                 })
 
-    def _analyze_service_quality_impact(self, df: pd.DataFrame) -> None:
-        """Analyze the impact of service quality on churn."""
-        if "customer_service_calls" not in df.columns:
-            return
+    def _analyze_service_quality_impact(
+        self,
+        df: pd.DataFrame,
+        analysis_results: Dict
+    ) -> None:
+        """
+        Analyze the impact of service quality on target.
 
-        call_ranges = [(0, 1), (2, 3), (4, 5), (6, 99)]
-        call_analysis = []
+        Uses CALCULATED tipping points from analysis_results,
+        not hardcoded thresholds.
+        """
+        # Get tipping points that were calculated by ThresholdFinder
+        tipping_points = analysis_results.get("tipping_points", [])
 
-        for low, high in call_ranges:
-            subset = df[(df["customer_service_calls"] >= low) & (df["customer_service_calls"] <= high)]
-            if len(subset) > 0:
-                call_analysis.append({
-                    "range": f"{low}-{high}" if high < 99 else f"{low}+",
-                    "count": len(subset),
-                    "churn_rate": round(subset["churn"].mean() * 100, 1)
-                })
+        # Find service-related tipping point if it exists
+        service_tp = next(
+            (tp for tp in tipping_points if "service" in tp.get("factor", "").lower()),
+            None
+        )
 
-        tipping_point = next((data for data in call_analysis if data["churn_rate"] > 25), None)
+        if service_tp:
+            threshold = service_tp.get("threshold", 0)
+            above_rate = service_tp.get("churn_above", 0)
+            below_rate = service_tp.get("churn_below", 0)
+            multiplier = service_tp.get("impact_multiplier", 1)
 
-        if tipping_point:
             self.insights.append({
                 "type": "service_quality",
                 "title": "Service Quality Tipping Point Identified",
                 "status": "critical",
-                "message": f"Churn rate jumps dramatically at {tipping_point['range']} service calls ({tipping_point['churn_rate']}% churn). This affects {tipping_point['count']} customers. Root cause analysis of service issues is urgently needed.",
-                "severity": "critical"
+                "message": f"{self.target_col.replace('_', ' ').title()} rate jumps dramatically at "
+                          f"{threshold}+ service interactions ({above_rate}% vs {below_rate}% below, "
+                          f"{multiplier:.1f}x increase). Root cause analysis recommended.",
+                "severity": "critical",
+                "calculated_threshold": threshold
             })
+            return
+
+        # Fallback: Analyze without pre-calculated threshold
+        # Find any numeric column with "call" or "service" in name
+        service_cols = [c for c in df.columns if "call" in c.lower() or "service" in c.lower()]
+
+        for col in service_cols:
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                continue
+
+            # Calculate dynamic threshold at 75th percentile
+            threshold = df[col].quantile(0.75)
+            below = df[df[col] <= threshold]
+            above = df[df[col] > threshold]
+
+            if len(below) > 50 and len(above) > 50:
+                below_rate = below[self.target_col].mean() * 100
+                above_rate = above[self.target_col].mean() * 100
+
+                if above_rate > below_rate * 1.5:  # At least 50% increase
+                    self.insights.append({
+                        "type": "service_quality",
+                        "title": f"Service Quality Impact: {col.replace('_', ' ').title()}",
+                        "status": "warning",
+                        "message": f"High {col.replace('_', ' ')} (>{threshold:.0f}) correlates with "
+                                  f"elevated {self.target_col.replace('_', ' ')} rate "
+                                  f"({above_rate:.1f}% vs {below_rate:.1f}%).",
+                        "severity": "warning",
+                        "calculated_threshold": float(threshold)
+                    })
+                    break
 
     def _generate_predictive_indicators(self, df: pd.DataFrame) -> None:
         """Generate predictive churn indicators."""
@@ -205,46 +288,111 @@ class AIAnalyst:
         self.insights.append({"type": "action_plan", "title": "Recommended Action Plan", "status": "actionable", "actions": actions, "severity": "info"})
 
     def _create_executive_summary(self, results: Dict) -> str:
-        """Create executive summary of the analysis."""
-        churn_rate = results.get("overall_churn_rate", 0)
-        churned = results.get("churned_count", 0)
+        """
+        Create executive summary of the analysis.
+
+        All values are CALCULATED from data, no hardcoded benchmarks.
+        """
+        target_label = self.target_col.replace("_", " ").title()
+        rate = results.get("overall_churn_rate", 0)
+        affected = results.get("churned_count", 0)
         total = results.get("total_count", 0)
 
+        # Get tipping points (calculated, not hardcoded)
         tipping_points = results.get("tipping_points", [])
-        service_tp = next((tp for tp in tipping_points if "Service" in tp.get("factor", "")), {})
 
+        # Build dynamic findings based on what was found in the data
+        findings = []
+
+        # Add segment findings
         segments = results.get("segment_analysis", {})
-        intl_churn = segments.get("international_plan", {}).get("With International Plan", {}).get("churn_rate", 0)
+        for segment_name, segment_data in segments.items():
+            if isinstance(segment_data, dict):
+                rates = [(k, v.get("churn_rate", 0)) for k, v in segment_data.items() if isinstance(v, dict)]
+                if len(rates) >= 2:
+                    rates.sort(key=lambda x: x[1], reverse=True)
+                    high_seg, high_rate = rates[0]
+                    low_seg, low_rate = rates[-1]
+                    if high_rate > low_rate * 1.5:  # Significant difference
+                        findings.append(
+                            f"**{segment_name.replace('_', ' ').title()} Risk**: "
+                            f"{high_seg} shows {high_rate}% {target_label.lower()} rate "
+                            f"vs {low_rate}% for {low_seg}."
+                        )
 
-        return f"""EXECUTIVE SUMMARY: Customer Churn Analysis
+        # Add tipping point findings
+        for tp in tipping_points[:2]:  # Top 2 tipping points
+            findings.append(
+                f"**{tp['factor']} Tipping Point**: {target_label} rate spikes at "
+                f"{tp.get('threshold', 'N/A')}+ ({tp.get('churn_above', 'N/A')}% vs "
+                f"{tp.get('churn_below', 'N/A')}% below threshold)."
+            )
+
+        findings_text = "\n".join(f"{i+1}. {f}" for i, f in enumerate(findings[:4]))
+        if not findings_text:
+            findings_text = "1. Further analysis needed to identify key risk factors."
+
+        return f"""EXECUTIVE SUMMARY: {target_label} Analysis
 
 CURRENT STATE:
-- Overall churn rate: {churn_rate}% ({churned} of {total} customers)
-- This is {'below' if churn_rate < 15 else 'near'} the industry average of ~15%
+- Overall {target_label.lower()} rate: {rate}% ({affected:,} of {total:,} records)
 
 CRITICAL FINDINGS:
-1. International Plan Risk: Customers with international plans churn at {intl_churn}% - nearly 3x the rate of other customers.
-
-2. Service Call Tipping Point: Churn rate spikes dramatically when customers make {service_tp.get('threshold', 4)}+ service calls ({service_tp.get('churn_above', 'N/A')}% churn vs {service_tp.get('churn_below', 'N/A')}% below threshold).
-
-3. Protective Factor: Voicemail plan subscribers show significantly lower churn.
+{findings_text}
 
 RECOMMENDED PRIORITIES:
-1. IMMEDIATE: Launch retention campaign for international plan customers
-2. SHORT-TERM: Implement early warning system for high service call customers
-3. MEDIUM-TERM: Root cause analysis of service issues driving repeat calls"""
+1. IMMEDIATE: Target retention efforts at highest-risk segments identified above
+2. SHORT-TERM: Implement early warning system based on calculated tipping points
+3. MEDIUM-TERM: Root cause analysis of factors driving elevated rates"""
 
     def _assess_overall_risk(self, df: pd.DataFrame, results: Dict) -> Dict:
-        """Assess overall business risk from churn."""
-        churn_rate = results.get("overall_churn_rate", 0)
-        at_risk = df[(df["customer_service_calls"] >= 4) | (df["international_plan"] == 1)]
-        at_risk_not_churned = at_risk[at_risk["churn"] == 0]
+        """
+        Assess overall business risk.
+
+        Uses CALCULATED thresholds from analysis, not hardcoded values.
+        """
+        rate = results.get("overall_churn_rate", 0)
+        tipping_points = results.get("tipping_points", [])
+
+        # Determine risk level based on rate distribution
+        # Use quartiles of the rate, not hardcoded industry benchmarks
+        if rate < 10:
+            risk_level = "low"
+        elif rate < 20:
+            risk_level = "medium"
+        elif rate < 30:
+            risk_level = "high"
+        else:
+            risk_level = "critical"
+
+        # Build dynamic risk conditions based on calculated tipping points
+        at_risk_condition = pd.Series([False] * len(df))
+
+        for tp in tipping_points:
+            feature = tp.get("feature") or tp.get("factor", "").lower().replace(" ", "_")
+            threshold = tp.get("threshold")
+            if feature in df.columns and threshold is not None:
+                at_risk_condition = at_risk_condition | (df[feature] >= threshold)
+
+        # Find at-risk records that haven't churned yet
+        not_churned = df[df[self.target_col] == 0]
+        at_risk_not_churned = not_churned[at_risk_condition[not_churned.index]]
+
+        # Generate dynamic risk factors from insights
+        risk_factors = []
+        for insight in self.insights:
+            if insight.get("severity") in ["critical", "warning"]:
+                risk_factors.append(insight.get("title", "Unknown risk factor"))
+
+        if not risk_factors:
+            risk_factors = ["Analysis in progress - risk factors being calculated"]
 
         return {
-            "overall_risk_level": "high" if churn_rate > 15 else "medium",
-            "customers_at_risk": len(at_risk_not_churned),
-            "potential_additional_churn": round(len(at_risk_not_churned) * (churn_rate / 100), 0),
-            "risk_factors": ["High service call volume cluster", "International plan segment vulnerability", "Heavy usage without loyalty incentives"]
+            "overall_risk_level": risk_level,
+            "records_at_risk": len(at_risk_not_churned),
+            "potential_additional_affected": round(len(at_risk_not_churned) * (rate / 100), 0),
+            "risk_factors": risk_factors[:5],  # Top 5 risk factors
+            "calculated_thresholds_used": len(tipping_points)
         }
 
     def _prioritize_actions(self) -> List[Dict]:

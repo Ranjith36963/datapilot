@@ -239,6 +239,356 @@
         ]
       },
       "timestamp": "2026-01-25T20:22:32.937848"
+    },
+    {
+      "source": "raw_raw_data",
+      "target": "curated_telecom_customers_v1",
+      "transformation": "curation",
+      "details": {
+        "steps": [
+          {
+            "step": "standardize_column_names",
+            "description": "Renamed 19 columns"
+          },
+          {
+            "step": "standardize_categorical_binary",
+            "description": "Converted 2 yes/no columns to binary: ['international_plan', 'voice_mail_plan']"
+          },
+          {
+            "step": "standardize_boolean_target",
+            "description": "Converted bool to int (0/1)"
+          },
+          {
+            "step": "validate_data_types",
+            "description": "Validated and corrected data types"
+          }
+        ],
+        "input_rows": 3333,
+        "output_rows": 3333
+      },
+      "timestamp": "2026-01-26T22:38:43.096453"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_risk_scores_v1",
+      "transformation": "logistic_regression",
+      "details": {
+        "model": "Pele's Logistic Regression",
+        "accuracy": "86.38%",
+        "features": [
+          "customer_service_calls",
+          "total_day_minutes",
+          "total_eve_minutes",
+          "total_night_minutes",
+          "total_intl_minutes",
+          "total_intl_calls",
+          "number_vmail_messages",
+          "account_length",
+          "international_plan",
+          "voice_mail_plan"
+        ],
+        "risk_tiers": {
+          "low": [
+            0.0,
+            0.15
+          ],
+          "medium": [
+            0.15,
+            0.3
+          ],
+          "high": [
+            0.3,
+            0.5
+          ],
+          "critical": [
+            0.5,
+            1.01
+          ]
+        }
+      },
+      "timestamp": "2026-01-26T22:38:44.282917"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_churn_analysis_v1",
+      "transformation": "churn_analysis",
+      "details": {
+        "analysis_types": [
+          "total_count",
+          "churned_count",
+          "retained_count",
+          "overall_churn_rate",
+          "segment_analysis",
+          "tipping_points",
+          "comparison",
+          "insights",
+          "model_validation"
+        ]
+      },
+      "timestamp": "2026-01-26T22:38:44.318136"
+    },
+    {
+      "source": "raw_raw_data",
+      "target": "curated_telecom_customers_v1",
+      "transformation": "curation",
+      "details": {
+        "steps": [
+          {
+            "step": "standardize_column_names",
+            "description": "Renamed 19 columns"
+          },
+          {
+            "step": "standardize_categorical_binary",
+            "description": "Converted 2 yes/no columns to binary: ['international_plan', 'voice_mail_plan']"
+          },
+          {
+            "step": "standardize_boolean_target",
+            "description": "Converted bool to int (0/1)"
+          },
+          {
+            "step": "validate_data_types",
+            "description": "Validated and corrected data types"
+          }
+        ],
+        "input_rows": 3333,
+        "output_rows": 3333
+      },
+      "timestamp": "2026-01-28T05:27:52.082037"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_risk_scores_v1",
+      "transformation": "logistic_regression",
+      "details": {
+        "model": "Pele's Logistic Regression",
+        "accuracy": "86.38%",
+        "features": [
+          "customer_service_calls",
+          "total_day_minutes",
+          "total_eve_minutes",
+          "total_night_minutes",
+          "total_intl_minutes",
+          "total_intl_calls",
+          "number_vmail_messages",
+          "account_length",
+          "international_plan",
+          "voice_mail_plan"
+        ],
+        "risk_tiers": {
+          "low": [
+            0.0,
+            0.15
+          ],
+          "medium": [
+            0.15,
+            0.3
+          ],
+          "high": [
+            0.3,
+            0.5
+          ],
+          "critical": [
+            0.5,
+            1.01
+          ]
+        }
+      },
+      "timestamp": "2026-01-28T05:27:53.213718"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_churn_analysis_v1",
+      "transformation": "churn_analysis",
+      "details": {
+        "analysis_types": [
+          "total_count",
+          "churned_count",
+          "retained_count",
+          "overall_churn_rate",
+          "segment_analysis",
+          "tipping_points",
+          "comparison",
+          "insights",
+          "model_validation"
+        ]
+      },
+      "timestamp": "2026-01-28T05:27:53.273467"
+    },
+    {
+      "source": "raw_raw_data",
+      "target": "curated_telecom_customers_v1",
+      "transformation": "curation",
+      "details": {
+        "steps": [
+          {
+            "step": "standardize_column_names",
+            "description": "Renamed 19 columns"
+          },
+          {
+            "step": "standardize_categorical_binary",
+            "description": "Converted 2 yes/no columns to binary: ['international_plan', 'voice_mail_plan']"
+          },
+          {
+            "step": "standardize_boolean_target",
+            "description": "Converted bool to int (0/1)"
+          },
+          {
+            "step": "validate_data_types",
+            "description": "Validated and corrected data types"
+          }
+        ],
+        "input_rows": 3333,
+        "output_rows": 3333
+      },
+      "timestamp": "2026-01-28T07:00:16.814618"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_risk_scores_v1",
+      "transformation": "sklearn_logistic_regression",
+      "details": {
+        "method": "sklearn.linear_model.LogisticRegression",
+        "accuracy": 0.8634863486348635,
+        "training_type": "REAL ML - coefficients LEARNED from data"
+      },
+      "timestamp": "2026-01-28T07:00:18.208217"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_churn_analysis_v1",
+      "transformation": "churn_analysis",
+      "details": {
+        "analysis_types": [
+          "total_count",
+          "churned_count",
+          "retained_count",
+          "overall_churn_rate",
+          "segment_analysis",
+          "tipping_points",
+          "comparison",
+          "insights",
+          "model_validation"
+        ]
+      },
+      "timestamp": "2026-01-28T07:00:18.279669"
+    },
+    {
+      "source": "raw_raw_data",
+      "target": "curated_telecom_customers_v1",
+      "transformation": "curation",
+      "details": {
+        "steps": [
+          {
+            "step": "standardize_column_names",
+            "description": "Renamed 19 columns"
+          },
+          {
+            "step": "standardize_categorical_binary",
+            "description": "Converted 2 yes/no columns to binary: ['international_plan', 'voice_mail_plan']"
+          },
+          {
+            "step": "standardize_boolean_target",
+            "description": "Converted bool to int (0/1)"
+          },
+          {
+            "step": "validate_data_types",
+            "description": "Validated and corrected data types"
+          }
+        ],
+        "input_rows": 3333,
+        "output_rows": 3333
+      },
+      "timestamp": "2026-01-28T18:31:40.903270"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_risk_scores_v1",
+      "transformation": "sklearn_logistic_regression",
+      "details": {
+        "method": "sklearn.linear_model.LogisticRegression",
+        "accuracy": 0.8634863486348635,
+        "training_type": "REAL ML - coefficients LEARNED from data"
+      },
+      "timestamp": "2026-01-28T18:32:04.347899"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_churn_analysis_v1",
+      "transformation": "churn_analysis",
+      "details": {
+        "analysis_types": [
+          "target_column",
+          "total_count",
+          "churned_count",
+          "retained_count",
+          "overall_churn_rate",
+          "segment_analysis",
+          "tipping_points",
+          "comparison",
+          "insights",
+          "model_validation"
+        ]
+      },
+      "timestamp": "2026-01-28T18:32:25.860601"
+    },
+    {
+      "source": "raw_raw_data",
+      "target": "curated_telecom_customers_v1",
+      "transformation": "curation",
+      "details": {
+        "steps": [
+          {
+            "step": "standardize_column_names",
+            "description": "Renamed 19 columns"
+          },
+          {
+            "step": "standardize_categorical_binary",
+            "description": "Converted 2 yes/no columns to binary: ['international_plan', 'voice_mail_plan']"
+          },
+          {
+            "step": "standardize_boolean_target",
+            "description": "Converted bool to int (0/1)"
+          },
+          {
+            "step": "validate_data_types",
+            "description": "Validated and corrected data types"
+          }
+        ],
+        "input_rows": 3333,
+        "output_rows": 3333
+      },
+      "timestamp": "2026-01-28T18:33:20.289916"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_risk_scores_v1",
+      "transformation": "sklearn_logistic_regression",
+      "details": {
+        "method": "sklearn.linear_model.LogisticRegression",
+        "accuracy": 0.8634863486348635,
+        "training_type": "REAL ML - coefficients LEARNED from data"
+      },
+      "timestamp": "2026-01-28T18:33:54.499205"
+    },
+    {
+      "source": "curated_telecom_customers_v1",
+      "target": "derived_churn_analysis_v1",
+      "transformation": "churn_analysis",
+      "details": {
+        "analysis_types": [
+          "target_column",
+          "total_count",
+          "churned_count",
+          "retained_count",
+          "overall_churn_rate",
+          "segment_analysis",
+          "tipping_points",
+          "comparison",
+          "insights",
+          "model_validation"
+        ]
+      },
+      "timestamp": "2026-01-28T18:34:32.455354"
     }
   ]
 }

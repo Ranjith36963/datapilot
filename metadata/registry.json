@@ -8,8 +8,8 @@
       "row_count": 3333,
       "column_count": 21,
       "description": "Telecom customer data for churn analysis",
-      "created_at": "2026-01-25T20:22:30.678080",
-      "version": "v20260125_202230"
+      "created_at": "2026-01-28T18:33:18.800206",
+      "version": "v20260128_183318"
     },
     "curated_telecom_customers_v1": {
       "name": "telecom_customers (Curated)",
@@ -19,8 +19,8 @@
       "row_count": 3333,
       "column_count": 21,
       "description": "Curated telecom customer data, version v1",
-      "created_at": "2026-01-25T20:22:31.829927",
-      "version": "v20260125_202231"
+      "created_at": "2026-01-28T18:33:20.287849",
+      "version": "v20260128_183320"
     },
     "derived_risk_scores_v1": {
       "name": "Customer Risk Scores",
@@ -29,20 +29,20 @@
       "schema_path": null,
       "row_count": 3333,
       "column_count": 18,
-      "description": "Customer churn risk scores using Pele's logistic regression model (86.38% accuracy)",
-      "created_at": "2026-01-25T20:22:32.902782",
-      "version": "v20260125_202232"
+      "description": "Customer churn risk scores using sklearn-trained logistic regression",
+      "created_at": "2026-01-28T18:33:54.492424",
+      "version": "v20260128_183354"
     },
     "derived_churn_analysis_v1": {
       "name": "Churn Analysis Summary",
       "zone": "derived",
       "path": "C:\\Users\\Ranjith\\veritly-ai-demo\\data\\derived\\churn_analysis_v1.xlsx",
       "schema_path": null,
-      "row_count": 17,
+      "row_count": 21,
       "column_count": 5,
-      "description": "Aggregated churn analysis results and insights",
-      "created_at": "2026-01-25T20:22:32.935984",
-      "version": "v20260125_202232"
+      "description": "Aggregated churn analysis with sklearn model metrics",
+      "created_at": "2026-01-28T18:34:32.452801",
+      "version": "v20260128_183432"
     },
     "report_executive_v1": {
       "name": "Executive Churn Analysis Report",
@@ -52,8 +52,8 @@
       "row_count": 0,
       "column_count": 0,
       "description": "AI-generated executive summary of churn analysis",
-      "created_at": "2026-01-25T20:22:32.985784",
-      "version": "v20260125_202232"
+      "created_at": "2026-01-28T18:34:32.522784",
+      "version": "v20260128_183432"
     }
   }
 }

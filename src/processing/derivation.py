@@ -1,109 +1,93 @@
 """
-Data derivation module for creating analysis outputs and derived datasets.
-Uses Pele's logistic regression model for churn prediction (86.38% accuracy).
+Data Derivation - Creates derived datasets using TRAINED sklearn model.
+
+IMPORTANT: All predictions are made using sklearn-trained model.
+NO hardcoded coefficients. Everything is LEARNED from data.
+
+The model:
+- CALCULATES standardisation parameters via StandardScaler.fit()
+- LEARNS coefficients via LogisticRegression.fit()
+- CALCULATES predictions via model.predict_proba()
+- CALCULATES metrics via sklearn.metrics
 """
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
-from src.config import (
-    DERIVED_ZONE,
-    LOGISTIC_COEFFICIENTS,
-    STANDARDISATION_PARAMS,
-    MODEL_FEATURES,
-    RISK_TIERS
-)
+from src.config import DERIVED_ZONE, MODELS_DIR, DEFAULT_MODEL_PATH
 from src.utils import setup_logging, MetadataManager
+from src.ml.trainer import ChurnModelTrainer
 
 
 class DataDeriver:
-    """Creates derived datasets from curated data using Pele's logistic regression model."""
+    """
+    Creates derived datasets using sklearn-trained model.
+
+    CRITICAL: NO hardcoded coefficients. All values are LEARNED from data.
+    """
 
     def __init__(self):
         self.logger = setup_logging("deriver")
         self.metadata = MetadataManager()
-
-    def _standardize_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Standardize features using z-score: z = (value - mean) / std."""
-        standardized = pd.DataFrame(index=df.index)
-
-        for feature in MODEL_FEATURES:
-            if feature in df.columns:
-                params = STANDARDISATION_PARAMS[feature]
-                standardized[f"{feature}_z"] = (
-                    (df[feature] - params['mean']) / params['std']
-                )
-            else:
-                self.logger.warning(f"Feature {feature} not found in dataframe")
-                standardized[f"{feature}_z"] = 0
-
-        return standardized
-
-    def _calculate_churn_probability(self, standardized_df: pd.DataFrame) -> np.ndarray:
-        """Calculate churn probability using logistic regression.
-
-        Formula:
-        1. Linear combination: L = intercept + sum(coefficient * z)
-        2. Probability: P = 1 / (1 + exp(-L))
-        """
-        linear_combination = np.full(len(standardized_df), LOGISTIC_COEFFICIENTS['intercept'])
-
-        for feature in MODEL_FEATURES:
-            z_col = f"{feature}_z"
-            if z_col in standardized_df.columns:
-                linear_combination += (
-                    LOGISTIC_COEFFICIENTS[feature] * standardized_df[z_col].values
-                )
-
-        probability = 1 / (1 + np.exp(-linear_combination))
-        return probability
-
-    def _assign_risk_tier(self, probability: float) -> str:
-        """Assign risk tier based on churn probability."""
-        for tier, (low, high) in RISK_TIERS.items():
-            if low <= probability < high:
-                return tier
-        return "critical"
+        self.trainer = ChurnModelTrainer()
+        self.training_results: Optional[Dict] = None
 
     def create_risk_scores(
         self,
         df: pd.DataFrame,
         source_dataset_id: str,
-        version: str = "v1"
+        version: str = "v1",
+        force_retrain: bool = True,
+        model_path: Optional[Path] = None
     ) -> Tuple[pd.DataFrame, Path]:
-        """Create customer risk scores using Pele's logistic regression model."""
-        self.logger.info("Calculating churn probabilities using Pele's logistic regression model")
+        """
+        Create customer risk scores using sklearn-trained model.
 
-        risk_df = df.copy()
+        This method either:
+        1. TRAINS a new model from scratch (force_retrain=True)
+        2. LOADS an existing trained model (force_retrain=False)
 
-        # Step 1: Standardize features
-        standardized = self._standardize_features(risk_df)
+        All coefficients are LEARNED from data, not hardcoded.
 
-        # Step 2: Calculate churn probability (0 to 1)
-        risk_df["churn_probability"] = self._calculate_churn_probability(standardized)
+        Args:
+            df: Curated customer DataFrame with features and 'churn' column
+            source_dataset_id: ID of source dataset for lineage tracking
+            version: Version string for output files
+            force_retrain: If True, always train new model. If False, try to load existing.
+            model_path: Path to model file. Defaults to models/churn_model.pkl
 
-        # Step 3: Calculate risk score as percentage (0 to 100)
-        risk_df["risk_score"] = (risk_df["churn_probability"] * 100).round(2)
+        Returns:
+            Tuple of (result_DataFrame, output_path)
+        """
+        model_path = model_path or DEFAULT_MODEL_PATH
 
-        # Step 4: Add predicted churn (1 if probability > 0.5 else 0)
-        risk_df["predicted_churn"] = (risk_df["churn_probability"] > 0.5).astype(int)
+        # Decide whether to train or load
+        if not force_retrain and model_path.exists():
+            self.logger.info("=" * 60)
+            self.logger.info("LOADING EXISTING TRAINED MODEL")
+            self.logger.info("=" * 60)
+            self.trainer.load(model_path)
+            self.training_results = self.trainer.training_results
+        else:
+            self.logger.info("=" * 60)
+            self.logger.info("TRAINING NEW MODEL FROM SCRATCH")
+            self.logger.info("All coefficients will be LEARNED from data")
+            self.logger.info("=" * 60)
 
-        # Step 5: Assign risk tier
-        risk_df["risk_tier"] = risk_df["churn_probability"].apply(self._assign_risk_tier)
+            # TRAIN model - this CALCULATES everything from data
+            self.training_results = self.trainer.train(df)
 
-        # Calculate model accuracy for logging
-        if "churn" in risk_df.columns:
-            correct_predictions = (risk_df["predicted_churn"] == risk_df["churn"]).sum()
-            accuracy = (correct_predictions / len(risk_df)) * 100
-            self.logger.info(f"Model accuracy: {accuracy:.2f}%")
+            # Save trained model for future use
+            self.trainer.save(model_path)
 
-            high_risk_count = (risk_df["predicted_churn"] == 1).sum()
-            self.logger.info(f"High-risk customers (predicted churn): {high_risk_count}")
+        # Generate predictions using TRAINED model
+        self.logger.info("")
+        self.logger.info("Generating predictions using TRAINED model...")
+        result_df = self.trainer.predict(df)
 
-        # Select output columns
+        # Select and order output columns
         output_cols = [
             "phone_number", "state", "account_length", "customer_service_calls",
             "international_plan", "voice_mail_plan", "total_day_minutes", "total_day_charge",
@@ -111,41 +95,40 @@ class DataDeriver:
             "number_vmail_messages", "churn_probability", "risk_score", "predicted_churn",
             "risk_tier", "churn"
         ]
-        output_cols = [c for c in output_cols if c in risk_df.columns]
-        risk_output = risk_df[output_cols]
+        output_cols = [c for c in output_cols if c in result_df.columns]
+        result_df = result_df[output_cols]
 
-        # Save to derived zone
+        # Save to Excel
         filename = f"customer_risk_scores_{version}.xlsx"
         output_path = DERIVED_ZONE / filename
-        risk_output.to_excel(output_path, index=False, engine="openpyxl")
-        self.logger.info(f"Saved risk scores to {output_path}")
+        result_df.to_excel(output_path, index=False, engine="openpyxl")
+        self.logger.info(f"Saved risk scores to: {output_path}")
 
-        # Register dataset
+        # Register in metadata
         dataset_id = f"derived_risk_scores_{version}"
         self.metadata.register_dataset(
             dataset_id=dataset_id,
             name="Customer Risk Scores",
             zone="derived",
             path=str(output_path),
-            row_count=len(risk_output),
-            column_count=len(risk_output.columns),
-            description="Customer churn risk scores using Pele's logistic regression model (86.38% accuracy)"
+            row_count=len(result_df),
+            column_count=len(result_df.columns),
+            description="Customer churn risk scores using sklearn-trained logistic regression"
         )
 
         # Track lineage
         self.metadata.add_lineage(
             source_id=source_dataset_id,
             target_id=dataset_id,
-            transformation="logistic_regression",
+            transformation="sklearn_logistic_regression",
             details={
-                "model": "Pele's Logistic Regression",
-                "accuracy": "86.38%",
-                "features": MODEL_FEATURES,
-                "risk_tiers": RISK_TIERS
+                "method": "sklearn.linear_model.LogisticRegression",
+                "accuracy": self.training_results.get('accuracy', 0),
+                "training_type": "REAL ML - coefficients LEARNED from data"
             }
         )
 
-        return risk_output, output_path
+        return result_df, output_path
 
     def create_churn_analysis(
         self,
@@ -154,7 +137,11 @@ class DataDeriver:
         source_dataset_id: str,
         version: str = "v1"
     ) -> Tuple[pd.DataFrame, Path]:
-        """Create churn analysis summary dataset."""
+        """
+        Create churn analysis summary dataset.
+
+        Uses CALCULATED metrics from training, not hardcoded values.
+        """
         self.logger.info("Creating churn analysis derived dataset")
 
         summaries = []
@@ -163,9 +150,9 @@ class DataDeriver:
         overall = pd.DataFrame([{
             "metric": "Overall Churn Rate",
             "segment": "All Customers",
-            "value": analysis_results["overall_churn_rate"],
-            "churned_count": analysis_results["churned_count"],
-            "total_count": analysis_results["total_count"]
+            "value": analysis_results.get("overall_churn_rate", 0),
+            "churned_count": analysis_results.get("churned_count", 0),
+            "total_count": analysis_results.get("total_count", 0)
         }])
         summaries.append(overall)
 
@@ -192,13 +179,31 @@ class DataDeriver:
             }
             summaries.append(pd.DataFrame([row]))
 
+        # Add model metrics if available
+        if self.training_results:
+            model_metrics = [
+                {"metric": "Model Accuracy", "segment": "sklearn.LogisticRegression",
+                 "value": round(self.training_results.get('accuracy', 0) * 100, 2),
+                 "churned_count": None, "total_count": None},
+                {"metric": "Model Precision", "segment": "sklearn.metrics",
+                 "value": round(self.training_results.get('precision', 0) * 100, 2),
+                 "churned_count": None, "total_count": None},
+                {"metric": "Model Recall", "segment": "sklearn.metrics",
+                 "value": round(self.training_results.get('recall', 0) * 100, 2),
+                 "churned_count": None, "total_count": None},
+                {"metric": "High Risk Count", "segment": "prob > 0.5",
+                 "value": self.training_results.get('high_risk_count', 0),
+                 "churned_count": None, "total_count": None},
+            ]
+            summaries.append(pd.DataFrame(model_metrics))
+
         analysis_df = pd.concat(summaries, ignore_index=True)
 
         # Save to derived zone
         filename = f"churn_analysis_{version}.xlsx"
         output_path = DERIVED_ZONE / filename
         analysis_df.to_excel(output_path, index=False, engine="openpyxl")
-        self.logger.info(f"Saved churn analysis to {output_path}")
+        self.logger.info(f"Saved churn analysis to: {output_path}")
 
         # Register dataset
         dataset_id = f"derived_churn_analysis_{version}"
@@ -209,7 +214,7 @@ class DataDeriver:
             path=str(output_path),
             row_count=len(analysis_df),
             column_count=len(analysis_df.columns),
-            description="Aggregated churn analysis results and insights"
+            description="Aggregated churn analysis with sklearn model metrics"
         )
 
         self.metadata.add_lineage(
@@ -220,3 +225,21 @@ class DataDeriver:
         )
 
         return analysis_df, output_path
+
+    def get_training_results(self) -> Dict:
+        """Return training results with all CALCULATED values."""
+        if self.training_results is None:
+            raise ValueError("No training results. Call create_risk_scores() first.")
+        return self.training_results
+
+    def get_model_info(self) -> Dict:
+        """Return information about the trained model."""
+        if not self.trainer.is_trained:
+            raise ValueError("Model not trained yet.")
+
+        return {
+            'learned_coefficients': self.trainer.get_learned_coefficients(),
+            'calculated_standardisation': self.trainer.get_calculated_standardisation(),
+            'feature_importance': self.trainer.get_feature_importance(),
+            'metrics': self.training_results
+        }

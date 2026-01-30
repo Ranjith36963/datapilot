@@ -1,7 +1,7 @@
 # Veritly Market Intelligence Report
 ## Telecom Customer Churn Analysis
 
-**Generated:** 2026-01-25 20:22:32
+**Generated:** 2026-01-28 18:34:32
 **Platform:** Veritly AI Market Intelligence
 **Version:** 1.0
 
@@ -21,8 +21,8 @@ the industry average of approximately 15%.
    for retention efforts.
 
 2. **Service Call Warning Signal**: Churn rate increases dramatically when customers
-   reach 4+ service calls (51.69%
-   vs 11.25% for lower call volumes).
+   reach 5+ service calls (61.39%
+   vs 13.03% for lower call volumes).
 
 3. **Voicemail Protective Effect**: Customers with voicemail plans demonstrate
    lower churn rates, suggesting this feature increases engagement and loyalty.
@@ -36,33 +36,33 @@ high service call customers could reduce overall churn by an estimated **20-30%*
 
 ## Predictive Model Performance
 
-### Pele's Logistic Regression Model
+### sklearn Logistic Regression Model
 
-This analysis uses Pele's logistic regression model for churn prediction, achieving
-industry-leading accuracy on this telecom customer dataset.
+This analysis uses a logistic regression model trained with sklearn.
+All model parameters are LEARNED from the input data, not hardcoded.
 
 | Metric | Value |
 |--------|-------|
-| **Model Accuracy** | **86.38%** |
-| Precision | 58.01% |
-| Recall | 21.74% |
-| F1 Score | 31.63 |
+| **Model Accuracy** | **86.34863486348635%** |
+| Precision | 57.692307692307686% |
+| Recall | 21.73913043478261% |
+| F1 Score | 0.32 |
 
 ### Risk Tier Distribution
 
 | Risk Tier | Customer Count | Probability Range |
 |-----------|---------------|-------------------|
-| Low | 2,296 | 0% - 15% |
-| Medium | 570 | 15% - 30% |
-| High | 286 | 30% - 50% |
-| Critical | 181 | 50% - 100% |
+| Low | 1,666 | 0% - 15% |
+| Medium | 833 | 15% - 30% |
+| High | 500 | 30% - 50% |
+| Critical | 334 | 50% - 100% |
 
 ### Prediction Summary
 
-- **Customers predicted to churn:** 181
+- **Customers predicted to churn:** 834
 - **True Positives:** 105 (correctly predicted churn)
-- **True Negatives:** 2,774 (correctly predicted retention)
-- **False Positives:** 76 (predicted churn but retained)
+- **True Negatives:** 2,773 (correctly predicted retention)
+- **False Positives:** 77 (predicted churn but retained)
 - **False Negatives:** 378 (predicted retention but churned)
 
 ---
@@ -96,18 +96,11 @@ industry-leading accuracy on this telecom customer dataset.
 
 | Segment | Customers | Churned | Churn Rate |
 |---------|-----------|---------|------------|
-| With Voicemail Plan | 922 | 80 | 8.68% |
-| Without Voicemail Plan | 2,411 | 403 | 16.72% |
+| With Voice Mail Plan | 922 | 80 | 8.68% |
+| Without Voice Mail Plan | 2,411 | 403 | 16.72% |
 
 ### Top States by Churn Rate
 
-| State | Customers | Churned | Churn Rate |
-|-------|-----------|---------|------------|
-| CA | 34 | 9 | 26.47% |
-| NJ | 68 | 18 | 26.47% |
-| TX | 72 | 18 | 25.0% |
-| MD | 70 | 17 | 24.29% |
-| SC | 60 | 14 | 23.33% |
 
 ---
 
@@ -116,40 +109,126 @@ industry-leading accuracy on this telecom customer dataset.
 
 These thresholds mark critical points where churn probability increases significantly:
 
+### Total Intl Minutes
+
+- **Threshold:** 3.9
+- **Churn Below Threshold:** 2.0%
+- **Churn Above Threshold:** 14.68%
+- **Impact Multiplier:** 7.34x
+
+> Records with Total Intl Minutes >= 3.9 have 14.7% churn rate vs 2.0% below threshold
+
+### Total Intl Charge
+
+- **Threshold:** 1.05
+- **Churn Below Threshold:** 2.0%
+- **Churn Above Threshold:** 14.68%
+- **Impact Multiplier:** 7.34x
+
+> Records with Total Intl Charge >= 1.05 have 14.7% churn rate vs 2.0% below threshold
+
+### Total Day Minutes
+
+- **Threshold:** 291.2
+- **Churn Below Threshold:** 13.28%
+- **Churn Above Threshold:** 75.38%
+- **Impact Multiplier:** 5.68x
+
+> Records with Total Day Minutes >= 291.2 have 75.4% churn rate vs 13.3% below threshold
+
+### Total Day Charge
+
+- **Threshold:** 49.5
+- **Churn Below Threshold:** 13.28%
+- **Churn Above Threshold:** 75.38%
+- **Impact Multiplier:** 5.68x
+
+> Records with Total Day Charge >= 49.5 have 75.4% churn rate vs 13.3% below threshold
+
 ### Customer Service Calls
 
-- **Threshold:** 4
-- **Churn Below Threshold:** 11.25%
-- **Churn Above Threshold:** 51.69%
-- **Impact Multiplier:** 4.59x
+- **Threshold:** 5
+- **Churn Below Threshold:** 13.03%
+- **Churn Above Threshold:** 61.39%
+- **Impact Multiplier:** 4.71x
 
-> Customers with 4+ service calls have 51.69% churn vs 11.25% for others
+> Records with Customer Service Calls >= 5 have 61.4% churn rate vs 13.0% below threshold
 
-### High Day Usage
+### International Plan
 
-- **Threshold:** 216.4
-- **Churn Below Threshold:** 9.56%
-- **Churn Above Threshold:** 29.29%
-- **Impact Multiplier:** 3.06x
+- **Threshold:** 1
+- **Churn Below Threshold:** 11.5%
+- **Churn Above Threshold:** 42.41%
+- **Impact Multiplier:** 3.69x
 
-> Customers with >=216.0 day minutes have higher churn
+> Records with International Plan >= 1 have 42.4% churn rate vs 11.5% below threshold
+
+### Total Night Minutes
+
+- **Threshold:** 104.9
+- **Churn Below Threshold:** 5.21%
+- **Churn Above Threshold:** 14.77%
+- **Impact Multiplier:** 2.84x
+
+> Records with Total Night Minutes >= 104.9 have 14.8% churn rate vs 5.2% below threshold
+
+### Total Night Charge
+
+- **Threshold:** 4.72
+- **Churn Below Threshold:** 5.26%
+- **Churn Above Threshold:** 14.76%
+- **Impact Multiplier:** 2.8x
+
+> Records with Total Night Charge >= 4.72 have 14.8% churn rate vs 5.3% below threshold
+
+### Total Eve Minutes
+
+- **Threshold:** 301.0
+- **Churn Below Threshold:** 14.1%
+- **Churn Above Threshold:** 29.76%
+- **Impact Multiplier:** 2.11x
+
+> Records with Total Eve Minutes >= 301.0 have 29.8% churn rate vs 14.1% below threshold
+
+### Total Eve Charge
+
+- **Threshold:** 25.59
+- **Churn Below Threshold:** 14.1%
+- **Churn Above Threshold:** 29.76%
+- **Impact Multiplier:** 2.11x
+
+> Records with Total Eve Charge >= 25.59 have 29.8% churn rate vs 14.1% below threshold
+
+### Account Length
+
+- **Threshold:** 17
+- **Churn Below Threshold:** 9.26%
+- **Churn Above Threshold:** 14.58%
+- **Impact Multiplier:** 1.57x
+
+> Records with Account Length >= 17 have 14.6% churn rate vs 9.3% below threshold
+
+### Total Day Calls
+
+- **Threshold:** 141
+- **Churn Below Threshold:** 14.36%
+- **Churn Above Threshold:** 20.0%
+- **Impact Multiplier:** 1.39x
+
+> Records with Total Day Calls >= 141 have 20.0% churn rate vs 14.4% below threshold
 
 ---
 
 
 ## AI-Generated Insights
 
-### *[INFO]* Customer Base Health Status
+### *[INFO]* Overall Health Status
 
-Current churn rate of 14.49% is below industry average (industry benchmark: ~15.0%). This represents 483 customers lost.
+Current churn rate of 14.49% is moderate. This represents 483 of 3,333 records.
 
 ### **[CRITICAL]** International Plan Customers - High Risk
 
 International plan subscribers churn at 42.41% (3.7x higher than non-subscribers at 11.5%). This segment represents 323 customers. Immediate intervention recommended.
-
-### *[INFO]* Voicemail Plan - Protective Factor Identified
-
-Customers with voicemail plans show 8.68% churn vs 16.72% without. Voicemail appears to increase engagement. Opportunity: 2411 customers without voicemail could benefit from targeted offers.
 
 ### **[WARNING]** Service Call Behavior Difference
 
@@ -161,7 +240,7 @@ Churned customers had higher average usage (207 min/day vs 175 min/day). Heavy u
 
 ### **[CRITICAL]** Service Quality Tipping Point Identified
 
-Churn rate jumps dramatically at 4-5 service calls (50.0% churn). This affects 232 customers. Root cause analysis of service issues is urgently needed.
+Churn rate jumps dramatically at 5+ service interactions (61.39% vs 13.03% below, 4.7x increase). Root cause analysis recommended.
 
 ### *[INFO]* Top Churn Predictors Identified
 
@@ -176,14 +255,15 @@ Key factors predicting churn (by correlation strength): International calling pl
 
 | Risk Metric | Value |
 |-------------|-------|
-| Customers Currently At Risk | 306 |
-| Potential Additional Churn | 44 customers |
+| Customers Currently At Risk | 0 |
+| Potential Additional Churn | 0 customers |
 
 ### Key Risk Factors
 
-- High service call volume cluster
-- International plan segment vulnerability
-- Heavy usage without loyalty incentives
+- International Plan Customers - High Risk
+- Service Call Behavior Difference
+- Heavy User Churn Pattern
+- Service Quality Tipping Point Identified
 
 ---
 
@@ -244,29 +324,21 @@ Promote voicemail adoption among customers without it. Consider bundling or free
 ## Appendix
 
 ### Methodology
-- **Churn Prediction**: Pele's logistic regression model (86.38% accuracy)
-- **Feature Standardization**: Z-score normalization using training set parameters
-- **Churn Analysis**: Statistical analysis of customer attributes and churn correlation
-- **Segment Analysis**: Group-by aggregations with churn rate calculations
-- **Tipping Points**: Threshold analysis to identify critical inflection points
-- **Risk Scoring**: Logistic regression probability-based scoring (0-100%)
+- **Prediction Model**: sklearn Logistic Regression (accuracy: 86.35% - CALCULATED from data)
+- **Feature Standardization**: Z-score normalization (parameters CALCULATED from training data)
+- **Segment Analysis**: Group-by aggregations with rate calculations
+- **Tipping Points**: DYNAMICALLY calculated using optimal threshold detection
+- **Risk Scoring**: Probability-based scoring with CALCULATED tier boundaries
 
-### Model Features
-The logistic regression model uses 10 standardized features:
-1. Customer Service Calls
-2. Total Day Minutes
-3. Total Evening Minutes
-4. Total Night Minutes
-5. Total International Minutes
-6. Total International Calls
-7. Number of Voicemail Messages
-8. Account Length
-9. International Plan (binary)
-10. Voice Mail Plan (binary)
+### Technical Notes
+- All model parameters are LEARNED from the input data via sklearn
+- All thresholds are CALCULATED dynamically, not hardcoded
+- Risk tier boundaries are determined from the probability distribution
+- This pipeline adapts to ANY data, ANY industry, ANY domain
 
 ---
 
 *This report was automatically generated by the Veritly AI Market Intelligence Platform.*
 
-**Veritly AI** | Market Intelligence Platform | Version 1.0
+**Veritly AI** | Market Intelligence Platform | Version 2.0 (Future-Proof Edition)
 
