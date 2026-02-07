@@ -1,0 +1,101 @@
+text,label,sentiment,sentiment_score
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
+"I hate this service, terrible experience, worst company ever\!",complaint,negative,-0.9041
+"Great customer support, very helpful and quick response.",praise,positive,0.8718
+Can you tell me about my billing? I need to understand my charges.,inquiry,negative,-0.2732
+I want to cancel my subscription immediately.,request,negative,-0.1779
+"The product is okay, nothing special but does the job.",feedback,neutral,-0.0462
+"Your service has been outstanding, I recommend it to everyone\!",complaint,positive,0.7777
+"I have been waiting for 3 hours, this is unacceptable\!",praise,negative,-0.5093
+How do I change my plan? I need more data.,inquiry,neutral,0.0
+The technician was professional and fixed the issue quickly.,request,neutral,0.0
+I am filing a formal complaint about the outage last week.,feedback,negative,-0.296
