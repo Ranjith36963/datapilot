@@ -1,0 +1,40 @@
+# Core
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic>=2.7
+
+# Engine dependencies
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+scipy>=1.11
+statsmodels>=0.14
+matplotlib>=3.7
+seaborn>=0.13
+
+# ML (optional but recommended)
+xgboost>=2.0
+lightgbm>=4.0
+optuna>=3.4
+shap>=0.43
+
+# NLP
+textblob>=0.18
+vaderSentiment>=3.3
+
+# Export
+reportlab>=4.0
+python-docx>=1.0
+python-pptx>=0.6
+
+# Visualization
+plotly>=5.18
+
+# LLM SDKs
+openai>=1.0
+
+# Utilities
+joblib>=1.3
+openpyxl>=3.1
+xlrd>=2.0
