@@ -26,7 +26,9 @@
       "Bash(npm ls:*)",
       "Bash(node -e:*)",
       "Bash(git stash:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(pip show:*)",
+      "Bash(npx next build:*)"
     ]
   }
 }

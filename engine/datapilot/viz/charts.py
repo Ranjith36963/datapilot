@@ -20,14 +20,121 @@ from ..utils.uploader import upload_result
 logger = setup_logging("datapilot.charts")
 
 
-def _save_fig(fig, file_path: str, chart_name: str) -> str:
-    """Save matplotlib figure and return path."""
+def _compute_chart_summary(
+    df: pd.DataFrame,
+    chart_type: str,
+    x: Optional[str] = None,
+    y: Optional[str] = None,
+    hue: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compute a small summary of the data actually plotted, for narration.
+
+    Returns a dict with aggregation type and key data points so the LLM
+    can narrate real numbers instead of hallucinating.
+    """
+    summary: Dict[str, Any] = {"x_column": x, "y_column": y, "chart_type": chart_type}
+    try:
+        if chart_type in ("bar", "barh") and x and y:
+            if not pd.api.types.is_numeric_dtype(df[y]):
+                # Binary/categorical y — proportion of first sorted value per x group
+                target_val = sorted(df[y].dropna().unique())[0]
+                grouped = df.groupby(x)[y].apply(lambda s: (s == target_val).mean() * 100)
+                data = grouped.sort_values(ascending=False).head(20)
+                summary["aggregation"] = "proportion"
+                summary["target_value"] = str(target_val)
+                summary["data"] = [
+                    {str(x): str(k), f"{y} Rate (%)": round(v, 1)} for k, v in data.items()
+                ]
+            else:
+                data = df.groupby(x)[y].mean().sort_values(ascending=False).head(20)
+                summary["aggregation"] = "mean"
+                summary["data"] = [
+                    {str(x): str(k), f"Mean {y}": round(v, 2)} for k, v in data.items()
+                ]
+        elif chart_type in ("bar", "barh", "count") and x and not y:
+            vc = df[x].value_counts().head(20)
+            summary["aggregation"] = "count"
+            summary["data"] = [
+                {str(x): str(k), "Count": int(v)} for k, v in vc.items()
+            ]
+        elif chart_type == "scatter" and x and y:
+            corr = df[[x, y]].dropna().corr().iloc[0, 1]
+            summary["aggregation"] = "correlation"
+            summary["correlation"] = round(float(corr), 4)
+            summary["x_stats"] = {
+                "mean": round(float(df[x].mean()), 2),
+                "std": round(float(df[x].std()), 2),
+            }
+            summary["y_stats"] = {
+                "mean": round(float(df[y].mean()), 2),
+                "std": round(float(df[y].std()), 2),
+            }
+        elif chart_type == "histogram" and x:
+            col = df[x].dropna()
+            summary["aggregation"] = "distribution"
+            summary["stats"] = {
+                "mean": round(float(col.mean()), 2),
+                "median": round(float(col.median()), 2),
+                "std": round(float(col.std()), 2),
+                "min": round(float(col.min()), 2),
+                "max": round(float(col.max()), 2),
+            }
+        elif chart_type == "box" and x and y:
+            summary["aggregation"] = "quartiles"
+            summary["data"] = []
+            for group, sub in df.groupby(x):
+                vals = sub[y].dropna()
+                if len(vals) > 0:
+                    summary["data"].append({
+                        str(x): str(group),
+                        "median": round(float(vals.median()), 2),
+                        "q1": round(float(vals.quantile(0.25)), 2),
+                        "q3": round(float(vals.quantile(0.75)), 2),
+                    })
+            summary["data"] = summary["data"][:20]
+        elif chart_type == "pie" and x:
+            vc = df[x].value_counts().head(10)
+            total = vc.sum()
+            summary["aggregation"] = "proportion"
+            summary["data"] = [
+                {str(x): str(k), "Count": int(v), "Pct": round(v / total * 100, 1)}
+                for k, v in vc.items()
+            ]
+        elif chart_type == "heatmap":
+            num_cols = get_numeric_columns(df)
+            corr = df[num_cols].corr()
+            # Find top 5 strongest off-diagonal correlations
+            pairs = []
+            for i in range(len(num_cols)):
+                for j in range(i + 1, len(num_cols)):
+                    pairs.append({
+                        "col1": num_cols[i], "col2": num_cols[j],
+                        "correlation": round(float(corr.iloc[i, j]), 4),
+                    })
+            pairs.sort(key=lambda p: abs(p["correlation"]), reverse=True)
+            summary["aggregation"] = "correlation_matrix"
+            summary["top_pairs"] = pairs[:5]
+    except Exception as e:
+        summary["summary_error"] = str(e)
+    return summary
+
+
+def _save_fig(fig, file_path: str, chart_name: str) -> tuple:
+    """Save matplotlib figure and return (path, base64_string)."""
     import matplotlib.pyplot as plt
     out_dir = Path(file_path).parent
     chart_path = str(out_dir / f"{chart_name}.png")
     fig.savefig(chart_path, dpi=150, bbox_inches="tight")
+
+    # Also capture base64 for inline display
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    buf.seek(0)
+    chart_b64 = base64.b64encode(buf.read()).decode("utf-8")
+    buf.close()
+
     plt.close(fig)
-    return chart_path
+    return chart_path, chart_b64
 
 
 def create_chart(
@@ -64,9 +171,22 @@ def create_chart(
 
         if chart_type == "bar":
             if y:
-                data = df.groupby(x)[y].mean().sort_values(ascending=False).head(20)
-                data.plot(kind="bar", ax=ax)
-                ax.set_ylabel(y)
+                if pd.api.types.is_numeric_dtype(df[y]):
+                    data = df.groupby(x)[y].mean().sort_values(ascending=False).head(20)
+                    data.plot(kind="bar", ax=ax)
+                    ax.set_ylabel(f"Mean {y}")
+                elif df[y].nunique() <= 2:
+                    # Binary categorical y: show proportion of first sorted value per x group
+                    target_val = sorted(df[y].dropna().unique())[0]
+                    proportions = df.groupby(x)[y].apply(lambda s: (s == target_val).mean() * 100)
+                    proportions = proportions.sort_values(ascending=False).head(20)
+                    proportions.plot(kind="bar", ax=ax)
+                    ax.set_ylabel(f"{y} = {target_val} Rate (%)")
+                else:
+                    # Multi-class categorical y: use crosstab proportions, stacked bar
+                    ct = pd.crosstab(df[x], df[y], normalize="index") * 100
+                    ct.head(20).plot(kind="bar", stacked=True, ax=ax)
+                    ax.set_ylabel(f"{y} Distribution (%)")
             else:
                 df[x].value_counts().head(20).plot(kind="bar", ax=ax)
 
@@ -135,11 +255,18 @@ def create_chart(
             g = sns.pairplot(df[num_cols].dropna(), diag_kind="kde")
             chart_path = str(Path(file_path).parent / "pairplot.png")
             g.savefig(chart_path, dpi=100, bbox_inches="tight")
+            # Capture base64
+            buf = io.BytesIO()
+            g.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+            buf.seek(0)
+            pair_b64 = base64.b64encode(buf.read()).decode("utf-8")
+            buf.close()
             plt.close("all")
             return safe_json_serialize({
                 "status": "success",
                 "chart_type": "pair",
                 "chart_path": chart_path,
+                "chart_base64": pair_b64,
             })
 
         else:
@@ -147,7 +274,7 @@ def create_chart(
 
         ax.set_title(chart_title)
         plt.tight_layout()
-        chart_path = _save_fig(fig, file_path, chart_type)
+        chart_path, chart_b64 = _save_fig(fig, file_path, chart_type)
 
         # Interactive Plotly HTML (optional)
         html_path = None
@@ -173,11 +300,15 @@ def create_chart(
         except (ImportError, Exception):
             pass
 
+        chart_summary = _compute_chart_summary(df, chart_type, x, y, hue)
+
         result = {
             "status": "success",
             "chart_type": chart_type,
             "chart_path": chart_path,
+            "chart_base64": chart_b64,
             "chart_html_path": html_path,
+            "chart_summary": chart_summary,
         }
         return safe_json_serialize(result)
 

@@ -134,6 +134,29 @@ class AnalystResult:
         )
 
 
+# Keys stripped from results before passing to LLM narration.
+# These are large binary blobs or server paths with no analytical value.
+_NARRATION_EXCLUDED_KEYS = {
+    "chart_base64", "image_base64", "chart_path", "chart_html_path",
+}
+
+
+def _sanitize_for_narration(
+    result: Dict[str, Any],
+    data_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Strip large/binary keys and inject column info for narration.
+
+    - Removes base64 blobs and server file paths (no analytical value, waste tokens).
+    - Injects _dataset_columns so the LLM knows the real column names.
+    """
+    import copy
+    cleaned = {k: copy.deepcopy(v) for k, v in result.items() if k not in _NARRATION_EXCLUDED_KEYS}
+    if data_context:
+        cleaned["_dataset_columns"] = [c["name"] for c in data_context.get("columns", [])]
+    return cleaned
+
+
 def _template_narrative(
     result: Dict[str, Any],
     skill_name: str,
@@ -142,6 +165,7 @@ def _template_narrative(
     """Generate a template-based narrative when LLM narration fails.
 
     Extracts key numbers from the result dict and builds a human-readable summary.
+    Uses actual column names from _dataset_columns when generating suggestions.
     """
     if status == "error":
         msg = result.get("message", "The analysis encountered an error.")
@@ -150,6 +174,19 @@ def _template_narrative(
             key_points=[],
             suggestions=["Try rephrasing your question", "Check if your data has the required columns"],
         )
+
+    # Gather actual column names for suggestions
+    dataset_columns = result.get("_dataset_columns", [])
+
+    def _col_suggestions() -> List[str]:
+        """Generate follow-up suggestions using actual column names."""
+        sug: List[str] = []
+        if len(dataset_columns) >= 2:
+            sug.append(f"Show me a chart of {dataset_columns[0]} vs {dataset_columns[1]}")
+        if dataset_columns:
+            sug.append(f"Describe the distribution of {dataset_columns[0]}")
+        sug.append("What are the key correlations?")
+        return sug[:3]
 
     text = ""
     key_points: List[str] = []
@@ -169,7 +206,9 @@ def _template_narrative(
         warnings = result.get("warnings", [])
         if warnings:
             key_points.append(f"{len(warnings)} data quality warnings detected")
-        suggestions = ["What are the key correlations?", "Are there any outliers?", "Describe the numeric columns"]
+        suggestions = ["What are the key correlations?", "Are there any outliers?"]
+        if dataset_columns:
+            suggestions.append(f"Describe the distribution of {dataset_columns[0]}")
 
     elif skill_name == "describe_data":
         ns = result.get("numeric_summary", [])
@@ -198,14 +237,14 @@ def _template_narrative(
         auto_comp = result.get("auto_comparison", [])
         if auto_comp:
             key_points.append(f"Compared {len(auto_comp)} algorithms, {algo} performed best")
-        suggestions = ["Show me a chart of feature importance", "What are the correlations with the target?"]
+        suggestions = [f"Show me a chart of feature importance for {target}", f"What are the correlations with {target}?"]
 
     elif skill_name == "detect_outliers":
         n = result.get("n_outliers", "?")
         pct = result.get("outlier_pct", "?")
         method = result.get("method", "Isolation Forest")
         text = f"Found {n} outlier records ({pct}%) using {method}."
-        suggestions = ["Describe the outlier characteristics", "Show me a chart of the outliers"]
+        suggestions = _col_suggestions()
 
     elif skill_name == "analyze_correlations":
         top = result.get("top_correlations", [])
@@ -221,19 +260,21 @@ def _template_narrative(
             ]
         else:
             text = "Correlation analysis complete. No strong correlations found."
-        suggestions = ["Are there any outliers?", "What predicts churn?"]
+        suggestions = ["Are there any outliers?"]
+        if dataset_columns:
+            suggestions.append(f"Show me a scatter plot of {top[0].get('col1', dataset_columns[0])} vs {top[0].get('col2', dataset_columns[-1])}" if top else f"Describe {dataset_columns[0]}")
 
     elif skill_name == "find_clusters":
         n = result.get("n_clusters", "?")
         method = result.get("method", "auto")
         text = f"Identified {n} distinct clusters using {method} clustering."
-        suggestions = ["Describe the cluster profiles", "Visualize the clusters"]
+        suggestions = _col_suggestions()
 
     elif skill_name == "forecast":
         method = result.get("method", "auto")
         n = result.get("n_periods", "?")
         text = f"Generated {n}-period forecast using {method}."
-        suggestions = ["Show me the forecast chart", "What are the trends?"]
+        suggestions = _col_suggestions()
 
     elif skill_name == "run_hypothesis_test":
         test = result.get("test", "?")
@@ -249,12 +290,25 @@ def _template_narrative(
 
     elif skill_name == "create_chart":
         chart_type = result.get("chart_type", "chart")
-        text = f"Created a {chart_type} visualization."
-        suggestions = ["Try a different chart type", "What are the correlations?"]
+        summary = result.get("chart_summary", {})
+        x_col = summary.get("x_column", "")
+        y_col = summary.get("y_column", "")
+        col_desc = f" of {x_col}" if x_col else ""
+        if y_col:
+            col_desc = f" of {x_col} vs {y_col}"
+        text = f"Created a {chart_type} chart{col_desc}."
+        # Extract key points from chart summary data
+        chart_data = summary.get("data", [])
+        if chart_data:
+            for item in chart_data[:3]:
+                vals = list(item.values())
+                if len(vals) >= 2:
+                    key_points.append(f"{vals[0]}: {vals[1]}")
+        suggestions = _col_suggestions()
 
     else:
         text = f"Analysis complete using {skill_name}."
-        suggestions = ["Give me an overview of the data", "What are the key correlations?"]
+        suggestions = _col_suggestions()
 
     return NarrativeResult(text=text, key_points=key_points, suggestions=suggestions)
 
@@ -433,17 +487,23 @@ class Analyst:
         skill_name: str,
         status: str,
     ) -> NarrativeResult:
-        """Generate narrative via LLM, falling back to templates on failure."""
+        """Generate narrative via LLM, falling back to templates on failure.
+
+        Sanitizes the result (strips base64/paths, injects column names) before
+        passing to the LLM provider.
+        """
+        sanitized = _sanitize_for_narration(analysis_result, self.data_context)
+
         # Try LLM narration first (Groq preferred for speed)
         try:
-            narrative = self._try_llm_narrative(analysis_result, question, skill_name)
+            narrative = self._try_llm_narrative(sanitized, question, skill_name)
             if narrative and narrative.text:
                 return narrative
         except Exception as e:
             logger.warning(f"LLM narrative failed: {e}")
 
-        # Fall back to template-based narrative
-        return _template_narrative(analysis_result, skill_name, status)
+        # Fall back to template-based narrative (also uses sanitized for column info)
+        return _template_narrative(sanitized, skill_name, status)
 
     def _try_llm_narrative(
         self,
@@ -451,7 +511,10 @@ class Analyst:
         question: str,
         skill_name: str,
     ) -> Optional[NarrativeResult]:
-        """Try to generate narrative via the primary LLM provider, then Groq fallback."""
+        """Try to generate narrative via the primary LLM provider, then Groq fallback.
+
+        Expects analysis_result to already be sanitized (no base64 blobs).
+        """
         # Try primary provider
         try:
             result = self.provider.generate_narrative(

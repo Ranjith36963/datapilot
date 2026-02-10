@@ -142,25 +142,42 @@ def _get_col_semantic_type(col_name: str, data_context: Dict[str, Any]) -> str:
     return "text"
 
 
+def _get_col_nunique(col_name: str, data_context: Dict[str, Any]) -> int:
+    """Look up n_unique for a column from data_context (case-insensitive)."""
+    col_lower = col_name.lower()
+    for c in data_context.get("columns", []):
+        if c["name"].lower() == col_lower:
+            return c.get("n_unique", 999)
+    return 999
+
+
 def _infer_chart_type(params: Dict[str, Any], data_context: Dict[str, Any]) -> str:
-    """Infer the best chart type from column types when no explicit type is given."""
+    """Infer the best chart type from column types and cardinality.
+
+    Uses n_unique to detect low-cardinality numerics (treated as categorical
+    for charting) and binary columns (best shown as bar/proportion charts).
+    """
     x_col = params.get("x")
     y_col = params.get("y")
+    x_type = _get_col_semantic_type(x_col, data_context) if x_col else None
+    y_type = _get_col_semantic_type(y_col, data_context) if y_col else None
+    x_nunique = _get_col_nunique(x_col, data_context) if x_col else 0
+    y_nunique = _get_col_nunique(y_col, data_context) if y_col else 0
+
+    # Treat low-cardinality numerics as categorical for charting purposes
+    x_discrete = x_type in ("categorical", "boolean") or (x_type == "numeric" and x_nunique <= 15)
+    y_binary = y_nunique == 2
 
     if x_col and y_col:
-        x_type = _get_col_semantic_type(x_col, data_context)
-        y_type = _get_col_semantic_type(y_col, data_context)
+        if y_binary:
+            return "bar"      # rate/proportion chart
+        if x_discrete:
+            return "bar"      # grouped bar
         if x_type == "numeric" and y_type == "numeric":
             return "scatter"
-        elif x_type == "categorical" and y_type == "numeric":
-            return "bar"
-        elif x_type == "numeric" and y_type == "categorical":
-            return "box"
-        else:
-            return "bar"
+        return "bar"          # safe default
     elif x_col:
-        x_type = _get_col_semantic_type(x_col, data_context)
-        return "histogram" if x_type == "numeric" else "count"
+        return "histogram" if (x_type == "numeric" and not x_discrete) else "count"
     else:
         return "histogram"
 
@@ -260,8 +277,8 @@ _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
     ),
     # Correlation
     (
-        [r"\bcorrelat", r"\brelationship between\b", r"\bhow.*related\b",
-         r"\bassociation\b"],
+        [r"\bcorrelat", r"\brelationship between\b", r"\bhow.*\brelat",
+         r"\bassociation\b", r"\brelate\b"],
         "analyze_correlations", {}, 0.92,
         "Matched: '{matched}' -> analyze_correlations",
     ),
@@ -650,10 +667,11 @@ def build_data_context(df) -> Dict[str, Any]:
     columns = []
     for col in df.columns:
         dtype = str(df[col].dtype)
-        if pd.api.types.is_numeric_dtype(df[col]):
-            semantic = "numeric"
-        elif pd.api.types.is_bool_dtype(df[col]):
+        # Check bool BEFORE numeric (numpy treats bool as numeric subtype)
+        if pd.api.types.is_bool_dtype(df[col]):
             semantic = "boolean"
+        elif pd.api.types.is_numeric_dtype(df[col]):
+            semantic = "numeric"
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             semantic = "datetime"
         elif df[col].nunique() < min(20, len(df) * 0.05):

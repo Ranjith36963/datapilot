@@ -208,6 +208,16 @@ class Executor:
             if key in sig.parameters and key not in filtered:
                 filtered[key] = value
 
+        # If the function accepts **kwargs, pass through all extra parameters
+        has_var_keyword = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD
+            for p in sig.parameters.values()
+        )
+        if has_var_keyword:
+            for key, value in parameters.items():
+                if key not in filtered:
+                    filtered[key] = value
+
         return filtered
 
     def _df_to_temp_path(self, df) -> str:
@@ -230,6 +240,8 @@ class Executor:
                 b64 = base64.b64encode(path.read_bytes()).decode("utf-8")
                 result["chart_base64"] = b64
                 logger.info(f"Injected chart_base64 from {chart_path}")
+            else:
+                logger.warning(f"Chart file not found: {chart_path}")
         return result
 
     @staticmethod

@@ -18,14 +18,23 @@ MAX_NARRATION_ROWS = 20
 MAX_NARRATION_CHARS = 4000
 
 
+# Keys that carry no analytical value and waste token budget in narration prompts.
+# Defense-in-depth: analyst.py also strips these before calling providers.
+_NARRATION_EXCLUDED_KEYS = {
+    "chart_base64", "image_base64", "chart_path", "chart_html_path",
+}
+
+
 def _truncate_for_narration(result: Dict[str, Any]) -> str:
     """Truncate analysis result to keep narration prompts small.
 
-    Caps any list values at MAX_NARRATION_ROWS items and the final
-    JSON string at MAX_NARRATION_CHARS characters.
+    Strips excluded keys (base64 blobs, file paths), caps list values at
+    MAX_NARRATION_ROWS items, and caps the final JSON at MAX_NARRATION_CHARS.
     """
     truncated: Dict[str, Any] = {}
     for key, value in result.items():
+        if key in _NARRATION_EXCLUDED_KEYS:
+            continue
         if isinstance(value, list) and len(value) > MAX_NARRATION_ROWS:
             truncated[key] = value[:MAX_NARRATION_ROWS]
             truncated[f"_{key}_truncated"] = f"{MAX_NARRATION_ROWS} of {len(value)} items shown"
@@ -155,7 +164,13 @@ class GroqProvider(LLMProvider):
         system = (
             "You are a friendly, expert data analyst explaining results to a business person. "
             "Write conversationally — like a colleague sharing insights over coffee. "
-            "Use specific numbers from the results. Be concise but insightful. "
+            "IMPORTANT: Only cite numbers that appear verbatim in the analysis results. "
+            "Never invent or estimate statistics. If no numbers are available, "
+            "describe what was done without fabricating data. Be concise but insightful. "
+            "Format numbers cleanly for business users. Round decimals to 1-2 places. "
+            "Convert proportions to percentages (0.946 → 94.6%). Never show more than 2 decimal places. "
+            "When describing chart results where y is binary (0/1 or True/False), describe proportions "
+            "as 'rate' or 'percentage', not 'mean'. For example, say 'churn rate of 46%' not 'mean churn of 0.46'. "
             "Respond ONLY with valid JSON: "
             '{"text": "<2-4 sentence narrative>", "key_points": ["<point1>", "<point2>", ...], '
             '"suggestions": ["<follow-up question 1>", "<follow-up question 2>"]}'
@@ -168,7 +183,10 @@ class GroqProvider(LLMProvider):
             f"Analysis results:\n{result_str}\n"
             f"{skill_hint}{question_line}\n\n"
             "Write a natural narrative summarizing the key findings. "
-            "Include specific numbers. 3-5 key points. 2-3 follow-up questions as suggestions."
+            "Only reference numbers present in the results above. Do not invent statistics. "
+            "3-5 key points. 2-3 follow-up questions as suggestions. "
+            "When suggesting follow-up questions, only reference column names from "
+            "the _dataset_columns list in the results. Use exact column names including spaces."
         )
 
         try:

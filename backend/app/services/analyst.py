@@ -27,7 +27,7 @@ class SessionManager:
         self,
         session_id: str,
         file_path: str,
-        llm: str = "ollama",
+        llm: Optional[str] = None,
     ) -> "Analyst":
         """Create a new Analyst session.
 

@@ -39,6 +39,7 @@ function formatMetricValue(key: string, val: number): string {
 const HANDLED_KEYS = new Set([
   "status", "overview", "columns", "quality_score", "warnings",
   "recommendations", "correlations", "chart_base64", "image_base64",
+  "chart_path", "chart_html_path", "chart_type", "chart_summary",
   "message", "correlation_matrix", "top_correlations",
   "multicollinearity_warning", "target_correlations",
   // Classification-specific

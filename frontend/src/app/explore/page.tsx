@@ -135,11 +135,6 @@ function TrustHeader({ data }: { data: AskResponse }) {
   );
 }
 
-function hasChartImage(result?: Record<string, unknown>): result is Record<string, unknown> & { chart_base64?: string; image_base64?: string } {
-  if (!result) return false;
-  return typeof result.chart_base64 === "string" || typeof result.image_base64 === "string";
-}
-
 export default function ExplorePage() {
   const { sessionId, filename, columns } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -355,18 +350,7 @@ export default function ExplorePage() {
                         </div>
                       )}
 
-                    {/* Chart image from result */}
-                    {hasChartImage(msg.data?.result) && (
-                      <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                        <img
-                          src={`data:image/png;base64,${
-                            (msg.data!.result!.chart_base64 ?? msg.data!.result!.image_base64) as string
-                          }`}
-                          alt="Chart"
-                          className="w-full"
-                        />
-                      </div>
-                    )}
+
                   </div>
                 </div>
               )}

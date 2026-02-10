@@ -11,6 +11,16 @@ from typing import Dict, List, Optional, Tuple
 logger = logging.getLogger("datapilot.llm.prompts")
 
 # ---------------------------------------------------------------------------
+# Shared constants
+# ---------------------------------------------------------------------------
+
+# Keys that carry no analytical value for narration (base64 blobs, server paths).
+# Used by providers (groq.py, etc.) and analyst.py to strip before LLM calls.
+NARRATION_EXCLUDED_KEYS = frozenset({
+    "chart_base64", "image_base64", "chart_path", "chart_html_path",
+})
+
+# ---------------------------------------------------------------------------
 # System prompts
 # ---------------------------------------------------------------------------
 
@@ -142,6 +152,8 @@ def build_skill_registry() -> List[Tuple[str, object, str, Dict]]:
             "load_data", "save_data", "upload_result", "safe_json_serialize",
             "format_for_narrative", "create_executive_summary_data",
             "create_detailed_findings_data",
+            # Low-level helpers that return raw DataFrames, not skill dicts
+            "correlation_matrix",
         ):
             continue
 
