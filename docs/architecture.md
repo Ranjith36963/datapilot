@@ -27,9 +27,10 @@ User
     ▼             ▼
 ┌─────────┐  ┌──────────────┐
 │  Engine │  │  LLM Provider│
-│  81+    │  │  - Ollama    │
-│  skills │  │  - Claude    │
-└─────────┘  │  - OpenAI   │
+│  81+    │  │  - Groq      │
+│  skills │  │  - Ollama    │
+└─────────┘  │  - Claude    │
+             │  - OpenAI    │
              └──────────────┘
 ```
 
@@ -84,6 +85,7 @@ engine/datapilot/
 │
 ├── llm/            LLM integration
 │   ├── provider.py   Abstract base class
+│   ├── groq.py       Groq provider (default)
 │   ├── ollama.py     Local Ollama provider
 │   ├── claude.py     Anthropic Claude provider
 │   ├── openai.py     OpenAI provider
@@ -121,7 +123,7 @@ WS /api/ws/chat   →  Same flow with progress updates streamed back
 
 ## Key Design Decisions
 
-- **Local-first LLM**: Ollama is the default — no API keys required
+- **Groq as default LLM**: Fast cloud inference via Groq API — requires `GROQ_API_KEY`
 - **Auto-generated skill catalog**: Function docstrings → LLM prompt at import time
 - **Safe execution**: Executor inspects function signatures to filter parameters
 - **Session-based**: Each upload creates an isolated Analyst instance

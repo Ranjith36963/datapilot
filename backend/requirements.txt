@@ -31,7 +31,7 @@ python-pptx>=0.6
 # Visualization
 plotly>=5.18
 
-# LLM SDKs
+# LLM SDKs (openai SDK also powers the Groq provider)
 openai>=1.0
 
 # Utilities

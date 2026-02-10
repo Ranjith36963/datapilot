@@ -74,6 +74,7 @@ from .core.executor import Executor
 
 # LLM Providers
 from .llm.provider import LLMProvider
+from .llm.groq import GroqProvider
 from .llm.ollama import OllamaProvider
 from .llm.claude import ClaudeProvider
 from .llm.openai import OpenAIProvider
@@ -124,5 +125,5 @@ __all__ = [
     # Core
     "Analyst", "AnalystResult", "Router", "Executor",
     # LLM
-    "LLMProvider", "OllamaProvider", "ClaudeProvider", "OpenAIProvider",
+    "LLMProvider", "GroqProvider", "OllamaProvider", "ClaudeProvider", "OpenAIProvider",
 ]

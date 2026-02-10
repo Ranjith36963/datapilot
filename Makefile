@@ -51,6 +51,3 @@ clean:
 	rm -rf frontend/.next frontend/out
 	rm -rf dist build *.egg-info
 
-# Pull Ollama model
-ollama-setup:
-	ollama pull llama3.2

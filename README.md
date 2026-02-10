@@ -2,13 +2,13 @@
 
 **AI-powered data analysis.** Upload a dataset, ask questions in natural language, get insights.
 
-DataPilot routes your questions to **81+ analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by local LLMs via Ollama.
+DataPilot routes your questions to **81+ analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by Groq LLMs.
 
 ## Features
 
 - **Natural Language Q&A** — Ask "What predicts churn?" and DataPilot picks the right analysis
 - **81 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
-- **LLM Routing** — Ollama (local/free), Claude, or OpenAI to interpret questions
+- **LLM Routing** — Groq (default), Ollama, Claude, or OpenAI to interpret questions
 - **Interactive Chat** — Streaming responses with key points and follow-up suggestions
 - **Chart Builder** — AI-suggested visualizations with manual controls
 - **Report Export** — PDF, Word, and PowerPoint reports from your analysis history
@@ -19,11 +19,11 @@ DataPilot routes your questions to **81+ analysis skills** spanning statistics, 
 ### Option 1: Docker (recommended)
 
 ```bash
-git clone https://github.com/veritly/datapilot.git
+git clone https://github.com/Ranjith36963/datapilot.git
 cd datapilot
 
-# Pull the default LLM model
-ollama pull llama3.2
+# Set your Groq API key (free at https://console.groq.com)
+echo "GROQ_API_KEY=your_key_here" > .env
 
 # Start all services
 docker compose up --build
@@ -48,11 +48,12 @@ npm install
 npm run dev
 ```
 
-**Ollama:**
+**Groq API key:**
 ```bash
-ollama serve
-ollama pull llama3.2
+export GROQ_API_KEY=your_key_here
 ```
+
+Get a free API key at [console.groq.com](https://console.groq.com).
 
 ## Architecture
 
@@ -66,8 +67,8 @@ ollama pull llama3.2
                               │                        │
                      ┌────────▼─────────┐     ┌────────▼────────┐
                      │  Session Manager │     │  LLM Provider   │
-                     │  In-memory state │     │  Ollama/Claude/ │
-                     └──────────────────┘     │  OpenAI         │
+                     │  In-memory state │     │  Groq/Ollama/   │
+                     └──────────────────┘     │  Claude/OpenAI  │
                                               └─────────────────┘
 ```
 
@@ -86,7 +87,7 @@ ollama pull llama3.2
 ```python
 from datapilot import Analyst
 
-analyst = Analyst("sales.csv", llm="ollama")
+analyst = Analyst("sales.csv", llm="groq")
 result = analyst.ask("Which features predict revenue?")
 print(result.text)           # narrative summary
 print(result.key_points)     # bullet points
@@ -122,9 +123,11 @@ API docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `DATAPILOT_LLM_PROVIDER` | `ollama` | LLM provider: `ollama`, `claude`, `openai` |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `llama3.2` | Ollama model name |
+| `GROQ_API_KEY` | — | Groq API key (required for default provider) |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model name |
+| `DATAPILOT_LLM_PROVIDER` | `groq` | LLM provider: `groq`, `ollama`, `claude`, `openai` |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (if using Ollama) |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama model name (if using Ollama) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (for Claude) |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL for frontend |
@@ -149,7 +152,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 
 **Frontend:** Next.js 16 · TypeScript · Tailwind CSS 4 · lucide-react · next-themes · react-dropzone
 
-**LLM:** Ollama (local) · Anthropic Claude · OpenAI GPT
+**LLM:** Groq (default) · Ollama (local) · Anthropic Claude · OpenAI GPT
 
 ## License
 

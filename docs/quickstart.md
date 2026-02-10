@@ -6,12 +6,12 @@ Get DataPilot running in under 3 minutes.
 
 - Python 3.10+
 - Node.js 18+
-- [Ollama](https://ollama.ai) (for local LLM)
+- [Groq API key](https://console.groq.com) (free tier available)
 
 ## 1. Clone and install
 
 ```bash
-git clone https://github.com/veritly/datapilot.git
+git clone https://github.com/Ranjith36963/datapilot.git
 cd datapilot
 
 # Python
@@ -23,11 +23,15 @@ pip install -e ".[all]"
 cd frontend && npm install && cd ..
 ```
 
-## 2. Start Ollama
+## 2. Set your Groq API key
 
 ```bash
-ollama serve
-ollama pull llama3.2
+export GROQ_API_KEY=your_key_here
+```
+
+Or create a `.env` file in the project root:
+```
+GROQ_API_KEY=your_key_here
 ```
 
 ## 3. Start the backend
@@ -70,11 +74,15 @@ result = analyst.ask("What patterns do you see?")
 print(result.text)
 ```
 
-## Using Claude or OpenAI instead of Ollama
+## Using other LLM providers
 
 Set the environment variable before starting the backend:
 
 ```bash
+# Ollama (local, no API key needed)
+export DATAPILOT_LLM_PROVIDER=ollama
+# Make sure Ollama is running: ollama serve && ollama pull llama3.2
+
 # Claude
 export DATAPILOT_LLM_PROVIDER=claude
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -90,4 +98,4 @@ export OPENAI_API_KEY=sk-...
 docker compose up --build
 ```
 
-This starts backend (:8000), frontend (:3000), and Ollama (:11434) together.
+This starts backend (:8000) and frontend (:3000) together. Set `GROQ_API_KEY` in your `.env` file first.

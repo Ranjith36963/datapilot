@@ -12,7 +12,7 @@ datapilot/
 ├── nlp/         sentiment, entities, topics, intent, text_stats
 ├── viz/         charts (static, interactive, dashboard)
 ├── export/      pdf, docx, pptx with templates
-├── llm/         provider ABC, ollama, claude, openai
+├── llm/         provider ABC, groq, ollama, claude, openai
 └── utils/       helpers, serializer, uploader, config, report_data
 ```
 

@@ -16,7 +16,7 @@ tests/                pytest test suite
 - **Engine**: Python 3.12, pandas, scikit-learn, XGBoost, LightGBM, SHAP, Prophet
 - **Backend**: FastAPI, uvicorn, Pydantic v2
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS, shadcn/ui, Plotly.js
-- **LLM**: Ollama (default, local), Claude API, OpenAI API
+- **LLM**: Groq (default), Ollama (local fallback), Claude API, OpenAI API
 - **Infra**: Docker Compose, GitHub Actions CI
 
 ## Conventions

@@ -6,11 +6,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - DATAPILOT_LLM_PROVIDER=ollama
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATAPILOT_LLM_PROVIDER=groq
       - DATAPILOT_TEMP_DIR=/tmp/datapilot
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - upload_data:/tmp/datapilot
 

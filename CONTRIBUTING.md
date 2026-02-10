@@ -6,7 +6,7 @@ Thank you for your interest in contributing to DataPilot!
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/veritly/datapilot.git
+   git clone https://github.com/Ranjith36963/datapilot.git
    cd datapilot
    ```
 
@@ -59,7 +59,7 @@ make test-cov     # With coverage report
 
 ## Reporting Issues
 
-Use [GitHub Issues](https://github.com/veritly/datapilot/issues) to report bugs or request features. Include:
+Use [GitHub Issues](https://github.com/Ranjith36963/datapilot/issues) to report bugs or request features. Include:
 
 - Steps to reproduce (for bugs)
 - Expected vs actual behavior
