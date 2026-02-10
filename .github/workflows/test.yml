@@ -14,6 +14,9 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
+    env:
+      GROQ_API_KEY: "test-dummy-key"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,14 +29,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[all,dev]"
+          pip install -r backend/requirements.txt
 
       - name: Run linter
         run: ruff check engine/ backend/
 
       - name: Run tests
-        run: |
-          cd engine
-          python -m pytest ../tests/ -v --tb=short
+        run: python -m pytest tests/ -v
 
   test-frontend:
     name: Frontend Build
@@ -48,7 +50,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: cd frontend && npm ci
+        run: cd frontend && npm install
 
       - name: Build
         run: cd frontend && npm run build
