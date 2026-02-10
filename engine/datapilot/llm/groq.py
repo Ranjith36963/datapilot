@@ -227,22 +227,37 @@ class GroqProvider(LLMProvider):
         """Suggest a chart using Groq."""
         client = self._get_client()
 
-        columns_info = ", ".join(
-            f"{c['name']} ({c.get('semantic_type', 'unknown')})"
+        columns_info = "\n".join(
+            f"- {c['name']} ({c.get('semantic_type', 'unknown')}, {c.get('n_unique', '?')} unique)"
             for c in data_context.get("columns", [])
         )
 
+        allowed_types = "histogram, bar, scatter, line, box, violin, heatmap, pie, area, strip"
+
+        system = (
+            "You are a data visualization expert. "
+            "Suggest the single best chart for this dataset. "
+            "Respond with JSON only."
+        )
+
         prompt = (
-            f"Dataset columns: {columns_info}\n"
-            "Suggest the best chart. Respond with JSON: "
-            '{"chart_type": "<type>", "x": "<col>", "y": "<col_or_null>", '
-            '"hue": "<col_or_null>", "title": "<title>"}'
+            f"Dataset: {data_context.get('shape', 'unknown')}\n"
+            f"Columns:\n{columns_info}\n\n"
+            f"Allowed chart types: {allowed_types}\n\n"
+            "Pick the most insightful chart. Use exact column names from the list above.\n"
+            "Respond with JSON: "
+            '{"chart_type": "<type>", "x": "<column_name>", "y": "<column_name_or_null>", '
+            '"hue": "<column_name_or_null>", "title": "<descriptive title>"}\n'
+            "Use null (not the string \"null\") for optional fields."
         )
 
         try:
             response = client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
                 max_tokens=512,
                 temperature=0,
             )
@@ -250,6 +265,32 @@ class GroqProvider(LLMProvider):
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
                 text = text.rsplit("```", 1)[0]
-            return json.loads(text)
-        except Exception:
-            return {"chart_type": "histogram", "x": None, "y": None, "title": "Data Distribution"}
+            result = json.loads(text)
+
+            # Clean up "null" strings → None
+            for key in ("x", "y", "hue"):
+                if isinstance(result.get(key), str) and result[key].lower() == "null":
+                    result[key] = None
+
+            # Validate chart_type against allowed list
+            allowed = {"histogram", "bar", "scatter", "line", "box", "violin", "heatmap", "pie", "area", "strip"}
+            if result.get("chart_type") not in allowed:
+                result["chart_type"] = "histogram"
+
+            return result
+        except Exception as e:
+            logger.warning(f"Groq chart suggestion failed: {e}")
+            # Smart fallback: pick first numeric column for histogram
+            cols = data_context.get("columns", [])
+            x_col = None
+            for c in cols:
+                if c.get("semantic_type") == "numeric":
+                    x_col = c["name"]
+                    break
+            return {
+                "chart_type": "histogram",
+                "x": x_col,
+                "y": None,
+                "hue": None,
+                "title": f"Distribution of {x_col}" if x_col else "Data Distribution",
+            }

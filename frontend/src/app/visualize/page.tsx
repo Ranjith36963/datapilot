@@ -86,16 +86,19 @@ export default function VisualizePage() {
   async function handleSuggest() {
     if (!sessionId) return;
     setSuggesting(true);
+    setError(null);
 
     try {
       const suggestion = await suggestChart(sessionId);
       setChartType(suggestion.chart_type || "histogram");
-      if (suggestion.x) setXCol(suggestion.x);
-      if (suggestion.y) setYCol(suggestion.y);
-      if (suggestion.hue) setHueCol(suggestion.hue);
+      setXCol(suggestion.x || "");
+      setYCol(suggestion.y || "");
+      setHueCol(suggestion.hue || "");
       if (suggestion.title) setTitle(suggestion.title);
-    } catch {
-      // Silently fail suggestion
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "AI suggestion failed"
+      );
     } finally {
       setSuggesting(false);
     }

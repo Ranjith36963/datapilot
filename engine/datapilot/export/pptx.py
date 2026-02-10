@@ -24,7 +24,7 @@ def export_to_pptx(
     Export analysis results to PowerPoint presentation.
 
     Args:
-        analysis_results: Dict with analysis output.
+        analysis_results: Dict with analysis output (summary, sections, key_points, metrics).
         output_path: Where to save the PPTX.
         title: Report title.
         subtitle: Report subtitle.
@@ -77,8 +77,31 @@ def export_to_pptx(
     pg.font.color.rgb = RGBColor(149, 165, 166)
     pg.alignment = PP_ALIGN.CENTER
 
+    # --- Executive Summary Slide ---
+    summary_text = analysis_results.get("summary", "")
+    if summary_text:
+        slide = prs.slides.add_slide(slide_layout)
+
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.333), Inches(0.8))
+        tf = title_box.text_frame
+        pg = tf.paragraphs[0]
+        pg.text = "Executive Summary"
+        pg.font.size = Pt(36)
+        pg.font.bold = True
+        pg.font.color.rgb = RGBColor(44, 62, 80)
+
+        body_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), Inches(11.733), Inches(5))
+        tf = body_box.text_frame
+        tf.word_wrap = True
+        pg = tf.paragraphs[0]
+        # Truncate for slide readability
+        pg.text = summary_text[:500] + ("..." if len(summary_text) > 500 else "")
+        pg.font.size = Pt(18)
+        pg.font.color.rgb = RGBColor(52, 73, 94)
+
     # --- Metrics Slide ---
-    if metrics:
+    report_metrics = metrics or analysis_results.get("metrics")
+    if report_metrics:
         slide = prs.slides.add_slide(slide_layout)
 
         title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.333), Inches(0.8))
@@ -96,7 +119,7 @@ def export_to_pptx(
             RGBColor(46, 204, 113),
         ]
 
-        for i, m in enumerate(metrics[:4]):
+        for i, m in enumerate(report_metrics[:4]):
             left = Inches(0.5 + i * 3.2)
             top = Inches(1.5)
             color = colors_list[i % len(colors_list)]
@@ -120,6 +143,46 @@ def export_to_pptx(
             pg.font.size = Pt(16)
             pg.font.color.rgb = RGBColor(255, 255, 255)
             pg.alignment = PP_ALIGN.CENTER
+
+    # --- Analysis Section Slides ---
+    sections = analysis_results.get("sections", [])
+    for section in sections:
+        slide = prs.slides.add_slide(slide_layout)
+
+        heading = section.get("heading", "Analysis")
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(12.333), Inches(0.8))
+        tf = title_box.text_frame
+        pg = tf.paragraphs[0]
+        pg.text = heading
+        pg.font.size = Pt(32)
+        pg.font.bold = True
+        pg.font.color.rgb = RGBColor(44, 62, 80)
+
+        # Narrative text
+        narrative = section.get("narrative", "")
+        if narrative:
+            body_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.3), Inches(11.733), Inches(2.5))
+            tf = body_box.text_frame
+            tf.word_wrap = True
+            pg = tf.paragraphs[0]
+            pg.text = narrative[:400] + ("..." if len(narrative) > 400 else "")
+            pg.font.size = Pt(16)
+            pg.font.color.rgb = RGBColor(52, 73, 94)
+
+        # Key points as bullet list
+        key_points = section.get("key_points", [])
+        if key_points:
+            points_box = slide.shapes.add_textbox(Inches(0.8), Inches(4.0), Inches(11.733), Inches(3))
+            tf = points_box.text_frame
+            tf.word_wrap = True
+            for j, point in enumerate(key_points[:5]):
+                if j == 0:
+                    pg = tf.paragraphs[0]
+                else:
+                    pg = tf.add_paragraph()
+                pg.text = f"• {point}"
+                pg.font.size = Pt(14)
+                pg.font.color.rgb = RGBColor(52, 73, 94)
 
     # --- Visualisation Slides ---
     if visualisation_paths:

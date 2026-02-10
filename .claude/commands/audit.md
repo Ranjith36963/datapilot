@@ -1,13 +1,9 @@
-Run a code quality audit on the DataPilot codebase.
+READ-ONLY AUDIT. Do not modify any files.
 
-Check and report on:
+Read the file or directory specified and report:
+1. What each function/component does (one sentence)
+2. Status: ACTIVE, DEAD, or OUTDATED
+3. Any bugs, missing error handling, or type issues
+4. Suggestions for improvement (but do NOT implement)
 
-1. **Test coverage**: `pytest tests/ --cov=engine/datapilot --cov-report=term-missing`
-2. **Lint issues**: `ruff check engine/ backend/ --statistics`
-3. **Type coverage**: `mypy engine/datapilot/ --ignore-missing-imports`
-4. **Security**: Check for hardcoded secrets, unsafe deserialization, SQL injection
-5. **Dead code**: Functions defined but never imported/called
-6. **Missing docstrings**: Public functions without docstrings
-7. **Import health**: Circular imports, unused imports
-
-Output a scorecard with grades (A-F) for each category.
+CRITICAL: Do not change any code. Only read and report.

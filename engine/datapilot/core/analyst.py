@@ -638,6 +638,100 @@ class Analyst:
         """Ask the LLM to suggest the best chart for this data."""
         return self.provider.suggest_chart(self.data_context)
 
+    def _build_report_data(
+        self,
+        analysis_results: Optional[List[Dict]] = None,
+    ) -> Dict[str, Any]:
+        """Build a structured report data dict from analysis history.
+
+        Combines narratives, key points, metrics, and chart paths into a
+        format the export functions can render as rich report content.
+        """
+        # Collect sections from history (which has full AnalystResult with narratives)
+        sections: List[Dict[str, Any]] = []
+        all_key_points: List[str] = []
+        all_metrics: List[Dict[str, str]] = []
+        chart_paths: Dict[str, str] = {}
+
+        for ar in self.history:
+            section: Dict[str, Any] = {
+                "heading": f"Analysis: {ar.skill_name.replace('_', ' ').title()}",
+                "question": ar.question,
+                "skill": ar.skill_name,
+            }
+
+            # Add narrative text
+            if ar.narrative and ar.narrative.text:
+                section["narrative"] = ar.narrative.text
+            else:
+                section["narrative"] = ar.text
+
+            # Add key points
+            points = ar.key_points
+            if points:
+                section["key_points"] = points
+                all_key_points.extend(points)
+
+            # Extract metrics from execution result
+            result = ar.execution.result or {}
+            if ar.skill_name == "classify":
+                metrics = result.get("metrics", {})
+                if metrics.get("accuracy") is not None:
+                    all_metrics.append({"label": "Accuracy", "value": f"{metrics['accuracy']*100:.1f}%"})
+                if metrics.get("f1") is not None:
+                    all_metrics.append({"label": "F1 Score", "value": f"{metrics['f1']*100:.1f}%"})
+                algo = result.get("algorithm")
+                if algo:
+                    all_metrics.append({"label": "Algorithm", "value": str(algo)})
+            elif ar.skill_name == "detect_outliers":
+                n = result.get("n_outliers")
+                pct = result.get("outlier_pct")
+                if n is not None:
+                    all_metrics.append({"label": "Outliers Found", "value": str(n)})
+                if pct is not None:
+                    all_metrics.append({"label": "Outlier %", "value": f"{pct}%"})
+            elif ar.skill_name == "analyze_correlations":
+                top = result.get("top_correlations", [])
+                if top:
+                    best = top[0]
+                    all_metrics.append({
+                        "label": "Strongest Correlation",
+                        "value": f"{best.get('col1', '?')} ↔ {best.get('col2', '?')} (r={best.get('correlation', 0):.3f})",
+                    })
+            elif ar.skill_name == "profile_data":
+                overview = result.get("overview", {})
+                rows = overview.get("total_rows")
+                cols = overview.get("total_columns")
+                quality = result.get("quality_score")
+                if rows is not None:
+                    all_metrics.append({"label": "Total Rows", "value": f"{rows:,}" if isinstance(rows, int) else str(rows)})
+                if cols is not None:
+                    all_metrics.append({"label": "Total Columns", "value": str(cols)})
+                if quality is not None:
+                    all_metrics.append({"label": "Data Quality", "value": f"{quality}%"})
+
+            # Collect chart paths
+            chart_path = result.get("chart_path") or result.get("path")
+            if chart_path:
+                chart_paths[ar.skill_name] = chart_path
+
+            sections.append(section)
+
+        # Build executive summary from all narratives
+        narratives = [s["narrative"] for s in sections if s.get("narrative")]
+        if narratives:
+            summary = " ".join(narratives[:5])
+        else:
+            summary = "Multiple analyses were performed on the dataset. See detailed sections below."
+
+        return {
+            "summary": summary,
+            "sections": sections,
+            "key_points": all_key_points,
+            "metrics": all_metrics[:4],  # Top 4 for display
+            "chart_paths": chart_paths,
+        }
+
     def export(
         self,
         path: str,
@@ -654,29 +748,27 @@ class Analyst:
             Path to the exported file.
         """
         ext = Path(path).suffix.lower()
-        result_list = analysis_results or [
-            r.execution.result for r in self.history
-            if r.execution.result
-        ]
-        # Export functions expect a single dict; merge list into one
-        if isinstance(result_list, list):
-            merged: Dict[str, Any] = {}
-            for r in result_list:
-                if isinstance(r, dict):
-                    merged.update(r)
-            results = merged
-        else:
-            results = result_list
+
+        # Build structured report data from history
+        report_data = self._build_report_data(analysis_results)
+
+        # Pass metrics and chart paths to export functions
+        export_kwargs = dict(kwargs)
+        if report_data["metrics"] and "metrics" not in export_kwargs:
+            export_kwargs["metrics"] = report_data["metrics"]
+        vis_paths = report_data.get("chart_paths")
+        if vis_paths and "visualisation_paths" not in export_kwargs:
+            export_kwargs["visualisation_paths"] = vis_paths
 
         if ext == ".pdf":
             from ..export.pdf import export_to_pdf
-            return export_to_pdf(output_path=path, analysis_results=results, **kwargs)
+            return export_to_pdf(output_path=path, analysis_results=report_data, **export_kwargs)
         elif ext == ".docx":
             from ..export.docx import export_to_docx
-            return export_to_docx(output_path=path, analysis_results=results, **kwargs)
+            return export_to_docx(output_path=path, analysis_results=report_data, **export_kwargs)
         elif ext == ".pptx":
             from ..export.pptx import export_to_pptx
-            return export_to_pptx(output_path=path, analysis_results=results, **kwargs)
+            return export_to_pptx(output_path=path, analysis_results=report_data, **export_kwargs)
         else:
             raise ValueError(
                 f"Unsupported export format: '{ext}'. Use .pdf, .docx, or .pptx"

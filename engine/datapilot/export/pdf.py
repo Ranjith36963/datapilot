@@ -24,7 +24,7 @@ def export_to_pdf(
     Export analysis results to PDF format using reportlab.
 
     Args:
-        analysis_results: Dict with analysis output.
+        analysis_results: Dict with analysis output (summary, sections, key_points, metrics).
         output_path: Where to save the PDF.
         title: Report title.
         subtitle: Report subtitle.
@@ -41,7 +41,7 @@ def export_to_pdf(
     from reportlab.lib.units import inch
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-        Image, PageBreak,
+        Image, PageBreak, ListFlowable, ListItem,
     )
     from reportlab.lib.enums import TA_CENTER
 
@@ -73,6 +73,13 @@ def export_to_pdf(
         alignment=TA_CENTER,
         textColor=colors.grey,
     ))
+    styles.add(ParagraphStyle(
+        name='SectionBody',
+        parent=styles['Normal'],
+        fontSize=10,
+        spaceAfter=8,
+        leading=14,
+    ))
 
     story = []
 
@@ -93,16 +100,17 @@ def export_to_pdf(
 
     summary_text = analysis_results.get("summary", "Analysis complete. See details below.")
     if isinstance(summary_text, str):
-        story.append(Paragraph(summary_text, styles['Normal']))
+        story.append(Paragraph(summary_text, styles['SectionBody']))
     story.append(Spacer(1, 24))
 
     # Key Metrics Table
-    if metrics:
+    report_metrics = metrics or analysis_results.get("metrics")
+    if report_metrics:
         story.append(Paragraph("Key Metrics", styles['Heading2']))
         story.append(Spacer(1, 12))
 
         metrics_data = [["Metric", "Value"]]
-        for m in metrics:
+        for m in report_metrics:
             metrics_data.append([m.get("label", ""), str(m.get("value", ""))])
 
         metrics_table = Table(metrics_data, colWidths=[3 * inch, 2 * inch])
@@ -121,6 +129,42 @@ def export_to_pdf(
         ]))
         story.append(metrics_table)
         story.append(Spacer(1, 24))
+
+    # Analysis Sections
+    sections = analysis_results.get("sections", [])
+    if sections:
+        story.append(PageBreak())
+        story.append(Paragraph("Detailed Analysis", styles['Heading1']))
+        story.append(Spacer(1, 12))
+
+        for section in sections:
+            heading = section.get("heading", "Analysis")
+            story.append(Paragraph(heading, styles['Heading2']))
+            story.append(Spacer(1, 6))
+
+            question = section.get("question")
+            if question:
+                story.append(Paragraph(
+                    f"<i>Question: {question}</i>",
+                    styles['SectionBody'],
+                ))
+                story.append(Spacer(1, 4))
+
+            narrative = section.get("narrative", "")
+            if narrative:
+                story.append(Paragraph(narrative, styles['SectionBody']))
+                story.append(Spacer(1, 6))
+
+            key_points = section.get("key_points", [])
+            if key_points:
+                items = [
+                    ListItem(Paragraph(point, styles['SectionBody']))
+                    for point in key_points
+                ]
+                story.append(ListFlowable(items, bulletType='bullet', start=''))
+                story.append(Spacer(1, 12))
+
+            story.append(Spacer(1, 12))
 
     # Visualisations
     if visualisation_paths:

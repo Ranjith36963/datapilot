@@ -24,7 +24,7 @@ def export_to_docx(
     Export analysis results to Word document format.
 
     Args:
-        analysis_results: Dict with analysis output.
+        analysis_results: Dict with analysis output (summary, sections, key_points, metrics).
         output_path: Where to save the DOCX.
         title: Report title.
         subtitle: Report subtitle.
@@ -63,10 +63,11 @@ def export_to_docx(
         doc.add_paragraph(summary_text)
 
     # Key Metrics
-    if metrics:
+    report_metrics = metrics or analysis_results.get("metrics")
+    if report_metrics:
         doc.add_heading('Key Metrics', level=1)
 
-        table = doc.add_table(rows=len(metrics) + 1, cols=2)
+        table = doc.add_table(rows=len(report_metrics) + 1, cols=2)
         table.style = 'Table Grid'
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
@@ -79,12 +80,37 @@ def export_to_docx(
                 for run in paragraph.runs:
                     run.bold = True
 
-        for i, m in enumerate(metrics):
+        for i, m in enumerate(report_metrics):
             row = table.rows[i + 1].cells
             row[0].text = m.get("label", "")
             row[1].text = str(m.get("value", ""))
 
         doc.add_paragraph()
+
+    # Analysis Sections
+    sections = analysis_results.get("sections", [])
+    if sections:
+        doc.add_heading('Detailed Analysis', level=1)
+
+        for section in sections:
+            heading_text = section.get("heading", "Analysis")
+            doc.add_heading(heading_text, level=2)
+
+            question = section.get("question")
+            if question:
+                q_para = doc.add_paragraph()
+                run = q_para.add_run(f"Question: {question}")
+                run.italic = True
+
+            narrative = section.get("narrative", "")
+            if narrative:
+                doc.add_paragraph(narrative)
+
+            key_points = section.get("key_points", [])
+            for point in key_points:
+                doc.add_paragraph(point, style='List Bullet')
+
+            doc.add_paragraph()
 
     # Visualisations
     if visualisation_paths:
