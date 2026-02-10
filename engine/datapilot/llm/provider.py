@@ -77,10 +77,12 @@ class LLMProvider(ABC):
         analysis_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Suggest the best chart type and parameters for the data.
+        Suggest chart types and parameters for the data.
 
         Returns:
-            Dict with chart_type, x, y, hue, title fields.
+            Dict with a "suggestions" key containing a list of suggestion dicts.
+            Each suggestion has: chart_type, x, y (nullable), hue (nullable),
+            title, and reason (one-line explanation of why this chart is useful).
         """
         ...
 

@@ -65,6 +65,11 @@ export interface ChartSuggestion {
   y?: string;
   hue?: string;
   title: string;
+  reason?: string;
+}
+
+export interface SuggestChartResponse {
+  suggestions: ChartSuggestion[];
 }
 
 export interface ExportResponse {
@@ -195,8 +200,8 @@ export async function createChart(
 
 export async function suggestChart(
   sessionId: string
-): Promise<ChartSuggestion> {
-  return apiFetch<ChartSuggestion>("/api/chart/suggest", {}, sessionId);
+): Promise<SuggestChartResponse> {
+  return apiFetch<SuggestChartResponse>("/api/chart/suggest", {}, sessionId);
 }
 
 export async function exportReport(

@@ -17,15 +17,8 @@ import {
   ShieldQuestion,
 } from "lucide-react";
 import { askQuestion, type AskResponse } from "@/lib/api";
-import { useSession } from "@/lib/store";
+import { useSession, type ChatMessage } from "@/lib/store";
 import { ResultCard } from "@/components/result-card";
-
-interface ChatMessage {
-  role: "user" | "assistant" | "error";
-  content: string;
-  data?: AskResponse;
-  timestamp: Date;
-}
 
 const SUGGESTED_QUESTIONS = [
   "Give me an overview of the data",
@@ -136,15 +129,14 @@ function TrustHeader({ data }: { data: AskResponse }) {
 }
 
 export default function ExplorePage() {
-  const { sessionId, filename, columns } = useSession();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { sessionId, filename, columns, exploreMessages, addExploreMessage } = useSession();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [exploreMessages]);
 
   if (!sessionId) {
     return (
@@ -164,32 +156,23 @@ export default function ExplorePage() {
     if (!q || loading || !sessionId) return;
 
     setInput("");
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: q, timestamp: new Date() },
-    ]);
+    addExploreMessage({ role: "user", content: q, timestamp: new Date().toISOString() });
     setLoading(true);
 
     try {
       const res = await askQuestion(sessionId, q);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: res.narrative || "Analysis complete.",
-          data: res,
-          timestamp: new Date(),
-        },
-      ]);
+      addExploreMessage({
+        role: "assistant",
+        content: res.narrative || "Analysis complete.",
+        data: res,
+        timestamp: new Date().toISOString(),
+      });
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "error",
-          content: err instanceof Error ? err.message : "Request failed",
-          timestamp: new Date(),
-        },
-      ]);
+      addExploreMessage({
+        role: "error",
+        content: err instanceof Error ? err.message : "Request failed",
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       setLoading(false);
     }
@@ -245,7 +228,7 @@ export default function ExplorePage() {
       <div className="flex-1 flex flex-col">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          {messages.length === 0 && (
+          {exploreMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
               <p className="text-slate-500 dark:text-slate-400 mb-4">
@@ -266,7 +249,7 @@ export default function ExplorePage() {
             </div>
           )}
 
-          {messages.map((msg, i) => (
+          {exploreMessages.map((msg, i) => (
             <div key={i} className="max-w-3xl mx-auto">
               {msg.role === "user" ? (
                 <div className="flex gap-3 justify-end">

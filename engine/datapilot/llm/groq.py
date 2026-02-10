@@ -162,17 +162,26 @@ class GroqProvider(LLMProvider):
         logger.info(f"Narration prompt size: {len(result_str)} chars")
 
         system = (
-            "You are a friendly, expert data analyst explaining results to a business person. "
-            "Write conversationally — like a colleague sharing insights over coffee. "
+            "You are a senior data analyst explaining results to a business colleague. "
+            "Speak naturally and conversationally — not like a report, but like a smart colleague "
+            "walking someone through what they found and why it matters. "
             "IMPORTANT: Only cite numbers that appear verbatim in the analysis results. "
             "Never invent or estimate statistics. If no numbers are available, "
-            "describe what was done without fabricating data. Be concise but insightful. "
+            "describe what was done without fabricating data. "
             "Format numbers cleanly for business users. Round decimals to 1-2 places. "
             "Convert proportions to percentages (0.946 → 94.6%). Never show more than 2 decimal places. "
             "When describing chart results where y is binary (0/1 or True/False), describe proportions "
             "as 'rate' or 'percentage', not 'mean'. For example, say 'churn rate of 46%' not 'mean churn of 0.46'. "
+            "Narrative style rules: "
+            "- Explain WHY findings matter, not just WHAT they are. Connect numbers to business implications. "
+            "- When discussing correlations, explain what the relationship means practically "
+            "(e.g., 'as X increases, Y tends to...' and why that matters for decisions). "
+            "- When discussing classification, explain which features drive predictions and suggest what actions to take. "
+            "- Keep narratives to 3-5 sentences — concise but insightful. "
+            "- Never start with 'The analysis reveals...' or 'The results show...' — vary your openings. "
+            "- End with a forward-looking insight or recommendation when possible. "
             "Respond ONLY with valid JSON: "
-            '{"text": "<2-4 sentence narrative>", "key_points": ["<point1>", "<point2>", ...], '
+            '{"text": "<3-5 sentence narrative>", "key_points": ["<point1>", "<point2>", ...], '
             '"suggestions": ["<follow-up question 1>", "<follow-up question 2>"]}'
         )
 
@@ -224,7 +233,7 @@ class GroqProvider(LLMProvider):
         data_context: Dict[str, Any],
         analysis_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Suggest a chart using Groq."""
+        """Suggest 3-5 ranked charts using Groq."""
         client = self._get_client()
 
         columns_info = "\n".join(
@@ -236,20 +245,23 @@ class GroqProvider(LLMProvider):
 
         system = (
             "You are a data visualization expert. "
-            "Suggest the single best chart for this dataset. "
-            "Respond with JSON only."
+            "Suggest 3-5 ranked chart ideas for this dataset. "
+            "Respond with a JSON array only."
         )
 
         prompt = (
             f"Dataset: {data_context.get('shape', 'unknown')}\n"
             f"Columns:\n{columns_info}\n\n"
             f"Allowed chart types: {allowed_types}\n\n"
-            "Pick the most insightful chart. Use exact column names from the list above.\n"
-            "Respond with JSON: "
-            '{"chart_type": "<type>", "x": "<column_name>", "y": "<column_name_or_null>", '
-            '"hue": "<column_name_or_null>", "title": "<descriptive title>"}\n'
+            "Suggest 3-5 charts ranked by insight value. Use exact column names from the list above.\n"
+            "Respond with a JSON array: "
+            '[{"chart_type": "<type>", "x": "<column_name>", "y": "<column_name_or_null>", '
+            '"hue": "<column_name_or_null>", "title": "<descriptive title>", '
+            '"reason": "<one-line explanation of why this chart is useful>"}, ...]\n'
             "Use null (not the string \"null\") for optional fields."
         )
+
+        allowed = {"histogram", "bar", "scatter", "line", "box", "violin", "heatmap", "pie", "area", "strip"}
 
         try:
             response = client.chat.completions.create(
@@ -258,39 +270,82 @@ class GroqProvider(LLMProvider):
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=512,
+                max_tokens=1024,
                 temperature=0,
             )
             text = response.choices[0].message.content.strip()
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
                 text = text.rsplit("```", 1)[0]
-            result = json.loads(text)
+            suggestions_raw = json.loads(text)
 
-            # Clean up "null" strings → None
-            for key in ("x", "y", "hue"):
-                if isinstance(result.get(key), str) and result[key].lower() == "null":
-                    result[key] = None
+            # Normalise: if the LLM returned a dict with a "suggestions" key, unwrap it
+            if isinstance(suggestions_raw, dict) and "suggestions" in suggestions_raw:
+                suggestions_raw = suggestions_raw["suggestions"]
 
-            # Validate chart_type against allowed list
-            allowed = {"histogram", "bar", "scatter", "line", "box", "violin", "heatmap", "pie", "area", "strip"}
-            if result.get("chart_type") not in allowed:
-                result["chart_type"] = "histogram"
+            if not isinstance(suggestions_raw, list):
+                suggestions_raw = [suggestions_raw]
 
-            return result
+            suggestions: List[Dict[str, Any]] = []
+            for item in suggestions_raw:
+                # Clean up "null" strings → None
+                for key in ("x", "y", "hue"):
+                    if isinstance(item.get(key), str) and item[key].lower() == "null":
+                        item[key] = None
+
+                # Validate chart_type against allowed list
+                if item.get("chart_type") not in allowed:
+                    item["chart_type"] = "histogram"
+
+                # Ensure reason field exists
+                if "reason" not in item:
+                    item["reason"] = ""
+
+                suggestions.append(item)
+
+            return {"suggestions": suggestions}
         except Exception as e:
             logger.warning(f"Groq chart suggestion failed: {e}")
-            # Smart fallback: pick first numeric column for histogram
+            # Smart fallback: build 2 default suggestions using actual column names
             cols = data_context.get("columns", [])
-            x_col = None
+            numeric_col = None
+            categorical_col = None
+            second_numeric_col = None
             for c in cols:
-                if c.get("semantic_type") == "numeric":
-                    x_col = c["name"]
-                    break
-            return {
-                "chart_type": "histogram",
-                "x": x_col,
-                "y": None,
-                "hue": None,
-                "title": f"Distribution of {x_col}" if x_col else "Data Distribution",
-            }
+                if c.get("semantic_type") == "numeric" and numeric_col is None:
+                    numeric_col = c["name"]
+                elif c.get("semantic_type") == "numeric" and second_numeric_col is None:
+                    second_numeric_col = c["name"]
+                elif c.get("semantic_type") == "categorical" and categorical_col is None:
+                    categorical_col = c["name"]
+
+            fallback: List[Dict[str, Any]] = [
+                {
+                    "chart_type": "histogram",
+                    "x": numeric_col,
+                    "y": None,
+                    "hue": None,
+                    "title": f"Distribution of {numeric_col}" if numeric_col else "Data Distribution",
+                    "reason": "Histograms are a good starting point to understand value distributions.",
+                },
+            ]
+            if numeric_col and second_numeric_col:
+                fallback.append({
+                    "chart_type": "scatter",
+                    "x": numeric_col,
+                    "y": second_numeric_col,
+                    "hue": categorical_col,
+                    "title": f"{numeric_col} vs {second_numeric_col}",
+                    "reason": "Scatter plots reveal relationships between numeric variables.",
+                })
+            elif numeric_col and categorical_col:
+                fallback.append({
+                    "chart_type": "box",
+                    "x": categorical_col,
+                    "y": numeric_col,
+                    "hue": None,
+                    "title": f"{numeric_col} by {categorical_col}",
+                    "reason": "Box plots show how a numeric variable varies across categories.",
+                })
+
+            return {"suggestions": fallback}

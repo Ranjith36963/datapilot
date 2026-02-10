@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException
 
 from ..models.requests import ChartRequest
-from ..models.responses import ChartResponse, SuggestChartResponse
+from ..models.responses import ChartResponse, SuggestChartItem, SuggestChartResponse
 from ..services.analyst import session_manager
 
 logger = logging.getLogger("datapilot.api.charts")
@@ -67,20 +67,28 @@ async def suggest_chart(
         raise HTTPException(status_code=404, detail="Session not found")
 
     try:
-        suggestion = analyst.suggest_chart()
+        result = analyst.suggest_chart()
+        items = [
+            SuggestChartItem(
+                chart_type=s.get("chart_type", "histogram"),
+                x=s.get("x"),
+                y=s.get("y"),
+                hue=s.get("hue"),
+                title=s.get("title", ""),
+                reason=s.get("reason", ""),
+            )
+            for s in result.get("suggestions", [])
+        ]
     except Exception as e:
         logger.warning(f"Chart suggestion failed: {e}")
-        suggestion = {
-            "chart_type": "histogram",
-            "x": None,
-            "y": None,
-            "title": "Data Distribution",
-        }
+        items = [
+            SuggestChartItem(
+                chart_type="histogram",
+                x=None,
+                y=None,
+                title="Data Distribution",
+                reason="Fallback suggestion due to an error.",
+            )
+        ]
 
-    return SuggestChartResponse(
-        chart_type=suggestion.get("chart_type", "histogram"),
-        x=suggestion.get("x"),
-        y=suggestion.get("y"),
-        hue=suggestion.get("hue"),
-        title=suggestion.get("title", ""),
-    )
+    return SuggestChartResponse(suggestions=items)
