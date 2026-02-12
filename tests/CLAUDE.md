@@ -35,3 +35,11 @@ pytest tests/ --tb=short            # short tracebacks
 ```bash
 pytest tests/ --cov=engine/datapilot --cov-report=html
 ```
+
+## Planned Phase 2 Test Files
+- `tests/unit/test_gemini_provider.py` — Gemini mock tests
+- `tests/unit/test_failover.py` — FailoverProvider logic tests
+- `tests/unit/test_session_store.py` — SQLite persistence tests
+- `tests/unit/test_fingerprint.py` — Domain detection tests
+- `tests/unit/test_autopilot.py` — Auto-pilot recipe tests
+- `tests/unit/test_domain_narratives.py` — Domain narrative tests

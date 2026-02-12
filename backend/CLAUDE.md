@@ -13,7 +13,8 @@ app/
 │   ├── export.py    POST /api/export/{fmt}, GET /api/export/download/{filename}
 │   └── ws.py        WS /api/ws/chat (streaming)
 ├── services/
-│   ├── analyst.py   SessionManager — wraps engine Analyst, {session_id: Analyst} dict
+│   ├── analyst.py   SessionManager — wraps engine Analyst, two-tier cache (in-memory + SQLite)
+│   ├── session_store.py  SQLite persistence (WAL mode), session CRUD, 24h expiry
 │   └── data_service.py  File upload handling, temp file management
 ├── models/
 │   ├── requests.py  Pydantic v2 request schemas (AskRequest, ChartRequest, ExportRequest)
@@ -24,7 +25,10 @@ app/
 ## Conventions
 - All routes prefixed with `/api/`
 - Pydantic v2 models for all request/response schemas
-- Session-based: `{session_id: Analyst}` in-memory dict via SessionManager singleton
+- Session persistence: SQLite (WAL mode) via SessionStore + in-memory cache via SessionManager
+  - Hot path: in-memory dict (no DB hit)
+  - Cold start: reconstruct Analyst from file_path stored in SQLite
+  - SessionStore at `backend/app/services/session_store.py`
 - Files stored in `/tmp/datapilot/` (uploads) and `/tmp/datapilot/exports/` (reports)
 - Session ID passed via `x-session-id` header
 - Streaming responses via WebSocket for chat
@@ -44,4 +48,10 @@ API docs at `http://localhost:8000/docs`
 
 ## Key Dependencies
 - fastapi, uvicorn, python-multipart (for file uploads)
+- aiosqlite (async SQLite for session persistence)
+- google-genai (Gemini LLM provider)
 - Engine imported via sys.path manipulation in services/analyst.py
+
+## Phase 2 Endpoints (planned)
+- `GET /api/autopilot/{session_id}` — auto-pilot analysis status/results
+- `PUT /api/session/domain` — user domain correction

@@ -5,15 +5,15 @@ Core Python analysis library — 81 analytical skills across 29 modules.
 ## Package Structure
 ```
 datapilot/
-├── core/        Analyst (public API), Router (keyword→LLM), Executor (param filtering + dispatch)
-├── data/        profiler, schema, validator, cleaner, ocr
+├── core/        Analyst (public API), Router (keyword→LLM), Executor (param filtering + dispatch), AutoPilot (domain recipes)
+├── data/        profiler, schema, validator, cleaner, ocr, fingerprint
 ├── analysis/    descriptive, correlation, anomaly, classification, regression,
 │                clustering, timeseries, hypothesis, effect_size, survival,
 │                dimensionality, selection, threshold, engineering, explain
 ├── nlp/         sentiment, entities, topics, intent, text_stats
 ├── viz/         charts (static matplotlib/seaborn, interactive plotly)
 ├── export/      pdf (reportlab), docx (python-docx), pptx (python-pptx), templates/
-├── llm/         provider ABC, groq, ollama, claude, openai, prompts
+├── llm/         provider ABC, groq, gemini, failover, ollama, claude, openai, prompts
 └── utils/       helpers, serializer, uploader, config, report_data
 ```
 
@@ -33,6 +33,10 @@ from ..utils.serializer import safe_json_serialize
 - **Router** (`core/router.py`): Priority chain — chart keywords → keyword table → primary LLM → Groq fallback → profile_data. Enriches params (target, date_col, columns).
 - **Executor** (`core/executor.py`): Dispatches to skill functions. Filters parameters to match function signatures.
 - **LLMProvider** (`llm/provider.py`): ABC with `route_question()`, `generate_narrative()`, `suggest_chart()`.
+- **FailoverProvider** (`llm/failover.py`): Task-aware routing across multiple LLM providers. Each method (routing, narrative, suggest_chart, chart_insight) has its own primary/fallback order.
+- **GeminiProvider** (`llm/gemini.py`): Google Gemini Flash 2.0 via google-genai SDK. Primary for narratives and chart suggestions.
+- **fingerprint_dataset** (`data/fingerprint.py`): 3-layer domain detection (column keywords → value profiling → LLM confirmation). Returns FingerprintResult with domain, confidence, explanation, suggested_target.
+- **AutoPilot** (`core/autopilot.py`): Runs domain-specific analysis recipes using existing skills. Confidence-aware: HIGH=full domain, MEDIUM=hybrid, LOW=general. Sequential execution with rate limit protection.
 
 ## Hallucination Defense (3 layers)
 1. `chart_summary` in viz/charts.py — structured data summary attached to chart results
@@ -46,6 +50,7 @@ NLP: textblob, vaderSentiment, spacy, gensim
 Viz: matplotlib, seaborn, plotly
 Export: reportlab, python-docx, python-pptx
 Optional: prophet, lifelines, hdbscan, pytesseract
+LLM: google-genai (Gemini), openai (Groq)
 
 ## Testing
 ```bash

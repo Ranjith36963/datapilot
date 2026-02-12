@@ -1,11 +1,11 @@
 # DataPilot Frontend
 
-Next.js 14 web application with TypeScript, Tailwind CSS, and shadcn/ui.
+Next.js 16 web application with TypeScript, Tailwind CSS, and shadcn/ui.
 
 ## Pages
 
-1. `/` — Upload (drag-drop, data preview, profile card, "Start Exploring" CTA)
-2. `/explore` — Chat interface (sidebar with data info, streaming chat, embedded charts)
+1. `/` — Upload (drag-drop, data preview, profile card, domain detection badge with explainability, "Start Exploring" CTA)
+2. `/explore` — Chat interface (AI Insights auto-pilot section at top, sidebar with data info, streaming chat, embedded charts)
 3. `/visualize` — Chart builder (type selector, column dropdowns, live preview)
 4. `/export` — Report generator (analysis selector, format picker, preview, download)
 

@@ -25,13 +25,15 @@ User
            │
     ┌──────┴──────┐
     ▼             ▼
-┌─────────┐  ┌──────────────┐
-│  Engine │  │  LLM Provider│
-│  81+    │  │  - Groq      │
-│  skills │  │  - Ollama    │
-└─────────┘  │  - Claude    │
-             │  - OpenAI    │
-             └──────────────┘
+┌─────────┐  ┌──────────────────┐
+│  Engine │  │  LLM Layer       │
+│  81+    │  │  FailoverProvider│
+│  skills │  │  ├─ Groq (fast)  │
+└─────────┘  │  ├─ Gemini (safe)│
+             │  ├─ Ollama       │
+             │  ├─ Claude       │
+             │  └─ OpenAI       │
+             └──────────────────┘
 ```
 
 ## Engine Package Structure
@@ -41,14 +43,16 @@ engine/datapilot/
 ├── core/           Main public API
 │   ├── analyst.py    Analyst class — ask(), profile(), classify(), etc.
 │   ├── router.py     LLM-powered question → skill routing
-│   └── executor.py   Safe skill execution with param filtering
+│   ├── executor.py   Safe skill execution with param filtering
+│   └── autopilot.py  Domain-aware auto-pilot analysis recipes
 │
 ├── data/           Data understanding & preparation
 │   ├── profiler.py   Dataset profiling
 │   ├── schema.py     Schema inference
 │   ├── validator.py  Data validation
 │   ├── cleaner.py    Data cleaning / curation
-│   └── ocr.py        Image text extraction
+│   ├── ocr.py        Image text extraction
+│   └── fingerprint.py Dataset domain detection (3-layer ensemble)
 │
 ├── analysis/       Statistical & ML analysis
 │   ├── descriptive.py    Descriptive statistics
@@ -85,7 +89,9 @@ engine/datapilot/
 │
 ├── llm/            LLM integration
 │   ├── provider.py   Abstract base class
-│   ├── groq.py       Groq provider (default)
+│   ├── groq.py       Groq provider (routing, chart insights)
+│   ├── gemini.py     Gemini Flash 2.0 (narratives, suggestions)
+│   ├── failover.py   Task-aware failover across providers
 │   ├── ollama.py     Local Ollama provider
 │   ├── claude.py     Anthropic Claude provider
 │   ├── openai.py     OpenAI provider
@@ -128,3 +134,7 @@ WS /api/ws/chat   →  Same flow with progress updates streamed back
 - **Safe execution**: Executor inspects function signatures to filter parameters
 - **Session-based**: Each upload creates an isolated Analyst instance
 - **Contract**: Every skill returns `{"status": "success|error", ...}`
+- **Task-aware LLM routing**: Groq handles routing + chart insights (speed). Gemini handles narratives + suggestions (accuracy + JSON reliability). FailoverProvider manages this split.
+- **SQLite session persistence**: WAL mode, two-tier cache (in-memory + DB), 24h expiry
+- **Dataset fingerprinting**: 3-layer ensemble (column keywords → value profiling → LLM) with explainability strings
+- **Auto-pilot**: Domain-specific analysis recipes, confidence-aware, sequential execution with rate limit protection
