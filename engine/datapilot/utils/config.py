@@ -24,6 +24,8 @@ class Config:
     OPENAI_API_KEY: Optional[str] = os.environ.get("OPENAI_API_KEY")
     GROQ_API_KEY: Optional[str] = os.environ.get("GROQ_API_KEY")
     GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    GEMINI_API_KEY: Optional[str] = os.environ.get("GEMINI_API_KEY")
+    GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
     # Analysis defaults
     DEFAULT_CV_FOLDS: int = 5

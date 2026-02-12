@@ -428,10 +428,13 @@ def _create_provider(name: str, **kwargs) -> LLMProvider:
     elif name == "groq":
         from ..llm.groq import GroqProvider
         return GroqProvider(**kwargs)
+    elif name == "gemini":
+        from ..llm.gemini import GeminiProvider
+        return GeminiProvider(**kwargs)
     else:
         raise ValueError(
             f"Unknown LLM provider: '{name}'. "
-            "Supported: 'ollama', 'claude', 'openai', 'groq'"
+            "Supported: 'ollama', 'claude', 'openai', 'groq', 'gemini'"
         )
 
 
@@ -470,13 +473,10 @@ class Analyst:
             )
 
         # Set up LLM provider
-        llm = llm or Config.LLM_PROVIDER
-        if isinstance(llm, str):
-            self.provider = _create_provider(llm)
-        elif isinstance(llm, LLMProvider):
+        if isinstance(llm, LLMProvider):
             self.provider = llm
         else:
-            raise TypeError(f"Expected str or LLMProvider, got {type(llm).__name__}")
+            self.provider = self._build_provider(llm)
 
         # Core components
         self.router = Router(self.provider)
@@ -493,6 +493,55 @@ class Analyst:
         self._profile_cache: Optional[Dict] = None
         if auto_profile:
             self._auto_profile()
+
+    @staticmethod
+    def _build_provider(llm_name=None):
+        """Build the best available LLM provider.
+
+        If multiple API keys are present, creates a FailoverProvider with
+        task-aware routing. Otherwise, creates a single provider.
+        Falls back gracefully if no API keys are set.
+        """
+        from ..llm.failover import FailoverProvider
+
+        providers = {}
+
+        # Try to create each provider (skip if API key missing)
+        if Config.GROQ_API_KEY:
+            try:
+                from ..llm.groq import GroqProvider
+                providers["groq"] = GroqProvider()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Groq: {e}")
+
+        if Config.GEMINI_API_KEY:
+            try:
+                from ..llm.gemini import GeminiProvider
+                providers["gemini"] = GeminiProvider()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gemini: {e}")
+
+        # If multiple providers available, use failover
+        if len(providers) > 1:
+            logger.info(f"Multi-LLM mode: {list(providers.keys())}")
+            return FailoverProvider(providers=providers)
+
+        # If one provider available, use it directly
+        if len(providers) == 1:
+            name = list(providers.keys())[0]
+            logger.info(f"Single-LLM mode: {name}")
+            return providers[name]
+
+        # If explicit provider name given, try to create it (legacy path)
+        if llm_name:
+            try:
+                return _create_provider(llm_name)
+            except Exception as e:
+                logger.warning(f"Failed to create provider '{llm_name}': {e}")
+
+        # No LLM available — return None (deterministic fallbacks handle the rest)
+        logger.warning("No LLM providers available — running in deterministic-only mode")
+        return None
 
     @property
     def _file_path(self) -> str:
@@ -623,11 +672,14 @@ class Analyst:
         skill_name: str,
         conversation_context: Optional[str] = None,
     ) -> Optional[NarrativeResult]:
-        """Try to generate narrative via the primary LLM provider, then Groq fallback.
+        """Try to generate narrative via the LLM provider.
 
         Expects analysis_result to already be sanitized (no base64 blobs).
+        FailoverProvider handles multi-provider failover internally.
         """
-        # Try primary provider
+        if self.provider is None:
+            return None
+
         try:
             result = self.provider.generate_narrative(
                 analysis_result=analysis_result,
@@ -638,23 +690,7 @@ class Analyst:
             if result and result.text:
                 return result
         except Exception as e:
-            logger.warning(f"Primary narrative failed: {e}")
-
-        # Try Groq fallback if primary isn't already Groq
-        from ..llm.groq import GroqProvider
-        if not isinstance(self.provider, GroqProvider):
-            try:
-                fallback = GroqProvider()
-                result = fallback.generate_narrative(
-                    analysis_result=analysis_result,
-                    question=question,
-                    skill_name=skill_name,
-                    conversation_context=conversation_context,
-                )
-                if result and result.text:
-                    return result
-            except Exception as e:
-                logger.warning(f"Groq narrative fallback failed: {e}")
+            logger.warning(f"LLM narrative failed: {e}")
 
         return None
 
@@ -750,6 +786,8 @@ class Analyst:
 
     def suggest_chart(self) -> Dict[str, Any]:
         """Ask the LLM to suggest the best chart for this data."""
+        if self.provider is None:
+            return {"suggestions": []}
         return self.provider.suggest_chart(self.data_context)
 
     def _build_report_data(

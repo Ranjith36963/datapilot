@@ -38,7 +38,20 @@
       "mcp__sequential-thinking__sequentialthinking",
       "mcp__playwright__browser_wait_for",
       "Bash(claude mcp add:*)",
-      "Bash(claude mcp remove:*)"
+      "Bash(claude mcp remove:*)",
+      "Bash(git -C C:\\\\Users\\\\Ranjith\\\\datapilot status:*)",
+      "Bash(test:*)",
+      "Bash(ls -la \"C:\\\\Users\\\\Ranjith\\\\datapilot\\\\engine\\\\datapilot\\\\llm\"\" | grep -E \"failover)",
+      "Bash(gemini \")",
+      "Bash(backend\\\\.venv\\\\Scripts\\\\pip install:*)",
+      "Bash(C:UsersRanjithdatapilotbackend.venvScriptspip install google-genai)",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/pip.exe\" install google-genai)",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -c \"import py_compile; py_compile.compile\\(''C:/Users/Ranjith/datapilot/engine/datapilot/llm/gemini.py'', doraise=True\\); print\\(''gemini.py OK''\\)\")",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -c \"import py_compile; py_compile.compile\\(''C:/Users/Ranjith/datapilot/engine/datapilot/llm/failover.py'', doraise=True\\); print\\(''failover.py OK''\\)\")",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -m pytest tests/ -v)",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -m pytest tests/unit/test_gemini_provider.py -v)",
+      "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -c:*)",
+      "Bash(PYTHONPATH=engine \"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\":*)"
     ]
   },
   "hooks": {

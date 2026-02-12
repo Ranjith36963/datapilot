@@ -7,9 +7,8 @@ Falls back to LLM routing for ambiguous questions.
 Priority order:
   1. Chart/visualization keywords (always checked first)
   2. Standard keyword routing table
-  3. Primary LLM provider
-  4. Groq fallback
-  5. profile_data (last resort)
+  3. LLM provider (FailoverProvider handles multi-provider failover)
+  4. profile_data (last resort)
 """
 
 import logging
@@ -702,7 +701,7 @@ def build_data_context(df) -> Dict[str, Any]:
 class Router:
     """Routes user questions to the best analysis skill.
 
-    Priority: chart keywords -> keyword table -> primary LLM -> Groq -> profile_data.
+    Priority: chart keywords -> keyword table -> LLM (FailoverProvider) -> profile_data.
     """
 
     def __init__(self, provider: LLMProvider):
@@ -743,26 +742,14 @@ class Router:
             )
             return keyword_result
 
-        # 2. Try primary LLM provider
-        result = self._try_llm_route(self.provider, question, data_context)
-        if result is not None:
-            result = _enrich_parameters(result, question, data_context)
-            return result
+        # 2. Try LLM provider (FailoverProvider handles multi-provider failover)
+        if self.provider is not None:
+            result = self._try_llm_route(self.provider, question, data_context)
+            if result is not None:
+                result = _enrich_parameters(result, question, data_context)
+                return result
 
-        # 3. If primary failed, try Groq as fallback (unless primary IS Groq)
-        from ..llm.groq import GroqProvider
-        if not isinstance(self.provider, GroqProvider):
-            try:
-                fallback = GroqProvider()
-                logger.info("Primary LLM failed, falling back to Groq")
-                result = self._try_llm_route(fallback, question, data_context)
-                if result is not None:
-                    result = _enrich_parameters(result, question, data_context)
-                    return result
-            except Exception as e:
-                logger.warning(f"Groq fallback init failed: {e}")
-
-        # 4. Last resort: profile_data
+        # 3. Last resort: profile_data
         logger.warning("All LLM routing failed, falling back to profile_data")
         return RoutingResult(
             skill_name="profile_data",

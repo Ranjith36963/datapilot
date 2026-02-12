@@ -33,6 +33,7 @@ plotly>=5.18
 
 # LLM SDKs (openai SDK also powers the Groq provider)
 openai>=1.0
+google-genai>=1.0
 
 # Utilities
 python-dotenv>=1.0

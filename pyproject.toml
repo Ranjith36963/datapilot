@@ -64,6 +64,7 @@ api = [
 llm = [
     "openai>=1.0",
     "anthropic>=0.25",
+    "google-genai>=1.0",
 ]
 all = ["datapilot[ml,nlp,api,llm]"]
 dev = [
