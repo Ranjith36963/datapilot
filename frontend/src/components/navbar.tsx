@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Compass,
   FileText,
   MessageSquare,
   Moon,
@@ -37,7 +38,7 @@ export function Navbar() {
             href="/"
             className="flex items-center gap-2 font-semibold text-lg text-slate-900 dark:text-white"
           >
-            <BarChart3 className="h-5 w-5 text-blue-600" />
+            <Compass className="h-5 w-5 text-blue-600" />
             DataPilot
           </Link>
 

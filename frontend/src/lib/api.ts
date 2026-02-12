@@ -56,6 +56,7 @@ export interface ChartResponse {
   chart_type: string;
   image_base64?: string;
   plotly_json?: Record<string, unknown>;
+  insight?: string;
   error?: string;
 }
 
@@ -148,16 +149,26 @@ export async function getProfile(
   return apiFetch("/api/profile", {}, sessionId);
 }
 
+export interface ConversationEntry {
+  question: string;
+  summary: string;
+}
+
 export async function askQuestion(
   sessionId: string,
   question: string,
-  narrate = true
+  narrate = true,
+  conversationContext: ConversationEntry[] = []
 ): Promise<AskResponse> {
   return apiFetch<AskResponse>(
     "/api/ask",
     {
       method: "POST",
-      body: JSON.stringify({ question, narrate }),
+      body: JSON.stringify({
+        question,
+        narrate,
+        conversation_context: conversationContext,
+      }),
     },
     sessionId
   );

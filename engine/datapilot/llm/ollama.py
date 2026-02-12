@@ -116,6 +116,7 @@ class OllamaProvider(LLMProvider):
         analysis_result: Dict[str, Any],
         question: Optional[str] = None,
         skill_name: Optional[str] = None,
+        conversation_context: Optional[str] = None,
     ) -> NarrativeResult:
         """Generate a human-readable narrative from analysis results."""
         system = (

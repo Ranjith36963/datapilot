@@ -154,6 +154,7 @@ class GroqProvider(LLMProvider):
         analysis_result: Dict[str, Any],
         question: Optional[str] = None,
         skill_name: Optional[str] = None,
+        conversation_context: Optional[str] = None,
     ) -> NarrativeResult:
         """Generate narrative using Groq."""
         client = self._get_client()
@@ -162,40 +163,34 @@ class GroqProvider(LLMProvider):
         logger.info(f"Narration prompt size: {len(result_str)} chars")
 
         system = (
-            "You are a senior data analyst explaining results to a business colleague. "
-            "Speak naturally and conversationally — not like a report, but like a smart colleague "
-            "walking someone through what they found and why it matters. "
-            "IMPORTANT: Only cite numbers that appear verbatim in the analysis results. "
-            "Never invent or estimate statistics. If no numbers are available, "
-            "describe what was done without fabricating data. "
-            "Format numbers cleanly for business users. Round decimals to 1-2 places. "
-            "Convert proportions to percentages (0.946 → 94.6%). Never show more than 2 decimal places. "
-            "When describing chart results where y is binary (0/1 or True/False), describe proportions "
-            "as 'rate' or 'percentage', not 'mean'. For example, say 'churn rate of 46%' not 'mean churn of 0.46'. "
-            "Narrative style rules: "
-            "- Explain WHY findings matter, not just WHAT they are. Connect numbers to business implications. "
-            "- When discussing correlations, explain what the relationship means practically "
-            "(e.g., 'as X increases, Y tends to...' and why that matters for decisions). "
-            "- When discussing classification, explain which features drive predictions and suggest what actions to take. "
-            "- Keep narratives to 3-5 sentences — concise but insightful. "
-            "- Never start with 'The analysis reveals...' or 'The results show...' — vary your openings. "
-            "- End with a forward-looking insight or recommendation when possible. "
-            "Respond ONLY with valid JSON: "
-            '{"text": "<3-5 sentence narrative>", "key_points": ["<point1>", "<point2>", ...], '
-            '"suggestions": ["<follow-up question 1>", "<follow-up question 2>"]}'
+            "You are a senior data analyst explaining results to a business colleague.\n"
+            "RULES:\n"
+            "1. Extract SPECIFIC numbers from results. Never use '?' — always use actual values.\n"
+            "2. Write 3-5 sentences. Every sentence must contain a specific number or finding.\n"
+            "3. End with the most interesting or surprising finding.\n"
+            "4. Never include filler like 'These findings provide insight...' or meta-commentary.\n"
+            "5. Focus on CURRENT analysis results. Previous context is reference only.\n"
+            "6. Never repeat the same statistic twice.\n"
+            "Respond ONLY with valid JSON:\n"
+            '{"text": "<3-5 sentence narrative with real numbers>", '
+            '"key_points": ["<specific finding with number>", ...], '
+            '"suggestions": ["<follow-up question>", "<follow-up question>"]}'
         )
 
         skill_hint = f"\nAnalysis type: {skill_name}" if skill_name else ""
         question_line = f"\nUser asked: {question}" if question else ""
+        context_line = ""
+        if conversation_context:
+            context_line = f"\nPrevious analysis context:\n{conversation_context}\n"
 
         prompt = (
             f"Analysis results:\n{result_str}\n"
-            f"{skill_hint}{question_line}\n\n"
-            "Write a natural narrative summarizing the key findings. "
-            "Only reference numbers present in the results above. Do not invent statistics. "
-            "3-5 key points. 2-3 follow-up questions as suggestions. "
-            "When suggesting follow-up questions, only reference column names from "
-            "the _dataset_columns list in the results. Use exact column names including spaces."
+            f"{skill_hint}{question_line}{context_line}\n\n"
+            "Summarize the key findings using SPECIFIC numbers from the results above. "
+            "Include actual row counts, column counts, percentages, means, correlations, "
+            "and column names — never use '?' placeholders. "
+            "Provide 3-5 key_points that each cite a specific number or finding. "
+            "Provide 2-3 follow-up suggestions using exact column names from _dataset_columns."
         )
 
         try:
@@ -205,7 +200,7 @@ class GroqProvider(LLMProvider):
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=500,
+                max_tokens=700,
                 temperature=0.3,
             )
 
@@ -228,12 +223,42 @@ class GroqProvider(LLMProvider):
                 suggestions=[],
             )
 
+    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+        """Generate a one-sentence insight from chart summary data."""
+        client = self._get_client()
+
+        summary_str = json.dumps(chart_summary, default=str)
+        if len(summary_str) > 2000:
+            summary_str = summary_str[:2000] + "... (truncated)"
+
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a data analyst. Generate exactly ONE sentence "
+                            "describing the most interesting finding in this chart data. "
+                            "Be specific — cite actual numbers. Never be generic."
+                        ),
+                    },
+                    {"role": "user", "content": summary_str},
+                ],
+                max_tokens=150,
+                temperature=0.3,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.warning(f"Groq chart insight failed: {e}")
+            return ""
+
     def suggest_chart(
         self,
         data_context: Dict[str, Any],
         analysis_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Suggest 3-5 ranked charts using Groq."""
+        """Suggest 4-6 ranked charts using Groq."""
         client = self._get_client()
 
         columns_info = "\n".join(
@@ -245,7 +270,7 @@ class GroqProvider(LLMProvider):
 
         system = (
             "You are a data visualization expert. "
-            "Suggest 3-5 ranked chart ideas for this dataset. "
+            "Suggest 4-6 ranked chart ideas for this dataset. "
             "Respond with a JSON array only."
         )
 
@@ -253,7 +278,7 @@ class GroqProvider(LLMProvider):
             f"Dataset: {data_context.get('shape', 'unknown')}\n"
             f"Columns:\n{columns_info}\n\n"
             f"Allowed chart types: {allowed_types}\n\n"
-            "Suggest 3-5 charts ranked by insight value. Use exact column names from the list above.\n"
+            "Suggest 4-6 charts ranked by insight value. Use exact column names from the list above.\n"
             "Respond with a JSON array: "
             '[{"chart_type": "<type>", "x": "<column_name>", "y": "<column_name_or_null>", '
             '"hue": "<column_name_or_null>", "title": "<descriptive title>", '

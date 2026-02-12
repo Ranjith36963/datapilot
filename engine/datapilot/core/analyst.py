@@ -11,6 +11,7 @@ Usage:
 
 import json
 import logging
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -157,6 +158,15 @@ def _sanitize_for_narration(
     return cleaned
 
 
+def _fmt(v: Any) -> str:
+    """Format a value for narrative display — round floats to 2dp."""
+    if v is None:
+        return "?"
+    if isinstance(v, float):
+        return f"{v:.2f}"
+    return str(v)
+
+
 def _template_narrative(
     result: Dict[str, Any],
     skill_name: str,
@@ -194,15 +204,42 @@ def _template_narrative(
 
     if skill_name == "profile_data":
         overview = result.get("overview", {})
-        rows = overview.get("total_rows", "?")
-        cols = overview.get("total_columns", "?")
+        rows = overview.get("rows", overview.get("total_rows", "?"))
+        cols = overview.get("columns", overview.get("total_columns", "?"))
         quality = result.get("quality_score", "?")
+        dupes = overview.get("duplicate_rows", 0)
+        missing = overview.get("missing_cells_pct", overview.get("total_missing", 0))
+        # Compute missing % from column profiles if overview doesn't have it
+        col_profiles = result.get("columns", result.get("column_profiles", []))
+        if missing == 0 and isinstance(col_profiles, list) and col_profiles:
+            total_missing = sum(cp.get("missing_count", 0) for cp in col_profiles if isinstance(cp, dict))
+            total_cells = rows * cols if isinstance(rows, int) and isinstance(cols, int) else 0
+            missing = round(total_missing / total_cells * 100, 1) if total_cells > 0 else 0
         text = (
             f"Your dataset contains {rows:,} records across {cols} features. "
             f"Data quality score is {quality}%."
         ) if isinstance(rows, int) else (
             f"Your dataset has {rows} rows and {cols} columns. Quality score: {quality}%."
         )
+        # Build specific, data-driven key points
+        if isinstance(rows, int):
+            key_points.append(f"{rows:,} rows and {cols} columns")
+        if dupes == 0:
+            key_points.append("No duplicate rows detected")
+        elif dupes:
+            key_points.append(f"{dupes} duplicate rows found")
+        if missing == 0 or missing == "0%":
+            key_points.append("No missing values")
+        elif missing:
+            key_points.append(f"Missing values: {missing}")
+        # Add column-level insights from the profile
+        col_profiles = result.get("columns", result.get("column_profiles", []))
+        if isinstance(col_profiles, list):
+            for cp in col_profiles[:2]:
+                cname = cp.get("name", cp.get("column", ""))
+                nunique = cp.get("n_unique", cp.get("unique_count"))
+                if cname and nunique is not None:
+                    key_points.append(f"'{cname}' has {nunique} unique values")
         warnings = result.get("warnings", [])
         if warnings:
             key_points.append(f"{len(warnings)} data quality warnings detected")
@@ -215,7 +252,7 @@ def _template_narrative(
         cs = result.get("categorical_summary", [])
         text = f"Analyzed {len(ns)} numeric and {len(cs)} categorical columns."
         if ns:
-            key_points = [f"{s.get('column', '?')}: mean={s.get('mean', '?')}, std={s.get('std', '?')}" for s in ns[:3]]
+            key_points = [f"{s.get('column', '?')}: mean={_fmt(s.get('mean'))}, std={_fmt(s.get('std'))}" for s in ns[:3]]
         suggestions = ["What are the correlations?", "Are there any outliers?"]
 
     elif skill_name == "classify":
@@ -240,20 +277,31 @@ def _template_narrative(
         suggestions = [f"Show me a chart of feature importance for {target}", f"What are the correlations with {target}?"]
 
     elif skill_name == "detect_outliers":
-        n = result.get("n_outliers", "?")
+        n = result.get("outlier_count", result.get("n_outliers", "?"))
         pct = result.get("outlier_pct", "?")
+        if isinstance(pct, float):
+            pct = f"{pct:.2f}"
         method = result.get("method", "Isolation Forest")
-        text = f"Found {n} outlier records ({pct}%) using {method}."
+        total = result.get("total_rows", "?")
+        text = f"Found {n} outlier records ({pct}%) out of {total} rows using {method}."
         suggestions = _col_suggestions()
 
     elif skill_name == "analyze_correlations":
         top = result.get("top_correlations", [])
         if top:
             best = top[0]
-            text = (
-                f"The strongest correlation is between {best.get('col1', '?')} and "
-                f"{best.get('col2', '?')} (r={best.get('correlation', 0):.3f})."
-            )
+            if len(top) >= 2:
+                text = (
+                    f"The strongest correlation is between {best.get('col1', '?')} and "
+                    f"{best.get('col2', '?')} (r={best.get('correlation', 0):.3f}). "
+                    f"The next strongest is {top[1].get('col1', '?')} and "
+                    f"{top[1].get('col2', '?')} (r={top[1].get('correlation', 0):.3f})."
+                )
+            else:
+                text = (
+                    f"The strongest correlation is between {best.get('col1', '?')} and "
+                    f"{best.get('col2', '?')} (r={best.get('correlation', 0):.3f})."
+                )
             key_points = [
                 f"{c.get('col1')} ↔ {c.get('col2')}: r={c.get('correlation', 0):.3f}"
                 for c in top[:5]
@@ -303,11 +351,62 @@ def _template_narrative(
             for item in chart_data[:3]:
                 vals = list(item.values())
                 if len(vals) >= 2:
-                    key_points.append(f"{vals[0]}: {vals[1]}")
+                    key_points.append(f"{vals[0]}: {_fmt(vals[1])}")
         suggestions = _col_suggestions()
 
+    elif skill_name == "compare_groups":
+        group_col = result.get("group_column", "?")
+        value_col = result.get("value_column", "?")
+        n_groups = result.get("n_groups", "?")
+        overall_mean = result.get("overall_mean")
+        groups = result.get("groups", [])
+        text = f"Compared {value_col} across {n_groups} groups defined by {group_col}."
+        if overall_mean is not None:
+            text += f" The overall mean is {overall_mean:.2f}."
+        for g in groups[:5]:
+            name = g.get("group", "?")
+            mean = g.get("mean")
+            diff = g.get("diff_from_overall_pct")
+            if mean is not None:
+                point = f"{name}: mean={mean:.2f}"
+                if diff is not None:
+                    point += f" ({diff:+.1f}% vs overall)"
+                key_points.append(point)
+            else:
+                count = g.get("count", "?")
+                key_points.append(f"{name}: {count} records")
+        suggestions = [f"Run a hypothesis test on {value_col} by {group_col}"]
+        if dataset_columns:
+            suggestions.append(f"Show me a box plot of {value_col} by {group_col}")
+        suggestions.append("What are the key correlations?")
+
     else:
-        text = f"Analysis complete using {skill_name}."
+        # Smart generic: extract numeric results for any unhandled skill
+        readable = skill_name.replace("_", " ").title()
+        parts: List[str] = []
+        for k, v in result.items():
+            if k.startswith("_") or k == "status":
+                continue
+            if isinstance(v, (int, float)):
+                label = k.replace("_", " ")
+                if isinstance(v, float):
+                    parts.append(f"{label}: {v:.4g}")
+                else:
+                    parts.append(f"{label}: {v}")
+            elif isinstance(v, str) and len(v) < 100 and k not in ("message",):
+                parts.append(f"{k.replace('_', ' ')}: {v}")
+        if parts:
+            text = f"{readable} analysis complete. " + "; ".join(parts[:6]) + "."
+        else:
+            text = f"{readable} analysis complete. See detailed results below."
+        # Extract key points from list-type results
+        for k, v in result.items():
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                for item in v[:3]:
+                    vals = [str(val) for val in item.values() if val is not None]
+                    if vals:
+                        key_points.append(" | ".join(vals[:3]))
+                break
         suggestions = _col_suggestions()
 
     return NarrativeResult(text=text, key_points=key_points, suggestions=suggestions)
@@ -428,6 +527,7 @@ class Analyst:
         self,
         question: str,
         narrate: bool = True,
+        conversation_context: Optional[str] = None,
     ) -> AnalystResult:
         """Ask a natural-language question about the data.
 
@@ -438,6 +538,7 @@ class Analyst:
         Args:
             question: Natural language question.
             narrate: Whether to generate a narrative via LLM.
+            conversation_context: Optional summary of previous Q&A pairs.
 
         Returns:
             AnalystResult with narrative included.
@@ -473,6 +574,7 @@ class Analyst:
             t3 = time.perf_counter()
             result.narrative = self._generate_narrative(
                 execution.result, question, routing.skill_name, execution.status,
+                conversation_context=conversation_context,
             )
             t4 = time.perf_counter()
             result.narration_ms = (t4 - t3) * 1000
@@ -486,6 +588,7 @@ class Analyst:
         question: str,
         skill_name: str,
         status: str,
+        conversation_context: Optional[str] = None,
     ) -> NarrativeResult:
         """Generate narrative via LLM, falling back to templates on failure.
 
@@ -496,10 +599,18 @@ class Analyst:
 
         # Try LLM narration first (Groq preferred for speed)
         try:
-            narrative = self._try_llm_narrative(sanitized, question, skill_name)
+            narrative = self._try_llm_narrative(
+                sanitized, question, skill_name,
+                conversation_context=conversation_context,
+            )
             if narrative and narrative.text:
-                return narrative
+                # Reject narratives with "?" placeholders or too short
+                if "? " not in narrative.text and len(narrative.text) > 30:
+                    return narrative
+                else:
+                    print(f"[DataPilot] LLM narrative rejected (contains '?' or too short), using template", file=sys.stderr)
         except Exception as e:
+            print(f"[DataPilot] LLM narrative failed: {e}", file=sys.stderr)
             logger.warning(f"LLM narrative failed: {e}")
 
         # Fall back to template-based narrative (also uses sanitized for column info)
@@ -510,6 +621,7 @@ class Analyst:
         analysis_result: Dict[str, Any],
         question: str,
         skill_name: str,
+        conversation_context: Optional[str] = None,
     ) -> Optional[NarrativeResult]:
         """Try to generate narrative via the primary LLM provider, then Groq fallback.
 
@@ -521,6 +633,7 @@ class Analyst:
                 analysis_result=analysis_result,
                 question=question,
                 skill_name=skill_name,
+                conversation_context=conversation_context,
             )
             if result and result.text:
                 return result
@@ -536,6 +649,7 @@ class Analyst:
                     analysis_result=analysis_result,
                     question=question,
                     skill_name=skill_name,
+                    conversation_context=conversation_context,
                 )
                 if result and result.text:
                     return result
@@ -647,13 +761,20 @@ class Analyst:
         Combines narratives, key points, metrics, and chart paths into a
         format the export functions can render as rich report content.
         """
-        # Collect sections from history (which has full AnalystResult with narratives)
+        # Deduplicate history by skill_name (keep latest entry per skill)
+        seen_skills: Dict[str, int] = {}
+        for idx, ar in enumerate(self.history):
+            seen_skills[ar.skill_name] = idx
+        deduped_indices = sorted(seen_skills.values())
+        deduped_history = [self.history[i] for i in deduped_indices]
+
+        # Collect sections from deduplicated history
         sections: List[Dict[str, Any]] = []
         all_key_points: List[str] = []
         all_metrics: List[Dict[str, str]] = []
         chart_paths: Dict[str, str] = {}
 
-        for ar in self.history:
+        for ar in deduped_history:
             section: Dict[str, Any] = {
                 "heading": f"Analysis: {ar.skill_name.replace('_', ' ').title()}",
                 "question": ar.question,
@@ -696,7 +817,7 @@ class Analyst:
                     best = top[0]
                     all_metrics.append({
                         "label": "Strongest Correlation",
-                        "value": f"{best.get('col1', '?')} ↔ {best.get('col2', '?')} (r={best.get('correlation', 0):.3f})",
+                        "value": f"{best.get('col1', '?')} \u2194 {best.get('col2', '?')} (r={best.get('correlation', 0):.3f})",
                     })
             elif ar.skill_name == "profile_data":
                 overview = result.get("overview", {})
@@ -717,10 +838,49 @@ class Analyst:
 
             sections.append(section)
 
-        # Build executive summary from all narratives
-        narratives = [s["narrative"] for s in sections if s.get("narrative")]
-        if narratives:
-            summary = " ".join(narratives[:5])
+        # Add dataset shape metrics from data_context if available
+        dc = getattr(self, 'data_context', None)
+        if isinstance(dc, dict):
+            shape_metrics = []
+            if dc.get("n_rows") is not None:
+                shape_metrics.append({"label": "Dataset Rows", "value": f"{dc['n_rows']:,}" if isinstance(dc['n_rows'], int) else str(dc['n_rows'])})
+            if dc.get("n_cols") is not None:
+                shape_metrics.append({"label": "Dataset Columns", "value": str(dc['n_cols'])})
+            # Add analyses performed count
+            if deduped_history:
+                shape_metrics.append({"label": "Analyses Performed", "value": str(len(deduped_history))})
+            # Add data quality from column null percentages
+            dc_columns = dc.get("columns", [])
+            if dc_columns and not any(m["label"] == "Data Quality" for m in all_metrics):
+                null_pcts = [c.get("null_pct", 0) for c in dc_columns]
+                avg_completeness = 100 - (sum(null_pcts) / len(null_pcts))
+                shape_metrics.append({"label": "Data Quality", "value": f"{avg_completeness:.1f}%"})
+            all_metrics = shape_metrics + all_metrics
+
+        # Extra chart paths from analysis_results
+        if isinstance(analysis_results, list):
+            for ar_dict in analysis_results:
+                if isinstance(ar_dict, dict):
+                    for key in ("chart_path", "path"):
+                        cp = ar_dict.get(key)
+                        if cp and cp not in chart_paths.values():
+                            name = ar_dict.get("skill", ar_dict.get("skill_name", f"chart_{len(chart_paths)}"))
+                            chart_paths[name] = cp
+
+        # Synthesize executive summary
+        skill_names = [s.get("heading", "").replace("Analysis: ", "") for s in sections]
+        top_points = all_key_points[:5]
+        if sections:
+            summary_parts = [
+                f"This report presents findings from {len(sections)} analyses ({', '.join(skill_names)}).",
+            ]
+            if top_points:
+                summary_parts.append("Key findings: " + "; ".join(top_points) + ".")
+            summary = " ".join(summary_parts)
+            # Cap at 300 words
+            words = summary.split()
+            if len(words) > 300:
+                summary = " ".join(words[:300]) + "..."
         else:
             summary = "Multiple analyses were performed on the dataset. See detailed sections below."
 
@@ -728,7 +888,7 @@ class Analyst:
             "summary": summary,
             "sections": sections,
             "key_points": all_key_points,
-            "metrics": all_metrics[:4],  # Top 4 for display
+            "metrics": all_metrics,
             "chart_paths": chart_paths,
         }
 

@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(docker:*)",
@@ -30,7 +33,44 @@
       "Bash(pip show:*)",
       "Bash(npx next build:*)",
       "Bash(wc:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(more:*)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__playwright__browser_wait_for",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp remove:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c '[[ \"$CLAUDE_FILE_PATHS\" =~ \\.py$ ]] && black $CLAUDE_FILE_PATHS && ruff check --fix $CLAUDE_FILE_PATHS 2>/dev/null || true'"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c '[[ \"$CLAUDE_FILE_PATHS\" =~ \\.(ts|tsx)$ ]] && npx prettier --write $CLAUDE_FILE_PATHS 2>/dev/null || true'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m pytest tests/ -x --tb=short -q"
+          }
+        ]
+      }
     ]
   }
 }

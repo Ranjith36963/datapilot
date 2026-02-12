@@ -56,6 +56,7 @@ class LLMProvider(ABC):
         analysis_result: Dict[str, Any],
         question: Optional[str] = None,
         skill_name: Optional[str] = None,
+        conversation_context: Optional[str] = None,
     ) -> NarrativeResult:
         """
         Generate a human-readable narrative from analysis results.
@@ -64,6 +65,7 @@ class LLMProvider(ABC):
             analysis_result: Raw output from a skill function.
             question: The original user question (for context).
             skill_name: Name of the skill that produced the results.
+            conversation_context: Summary of previous Q&A pairs for continuity.
 
         Returns:
             NarrativeResult with text, key points, and suggestions.
@@ -85,6 +87,14 @@ class LLMProvider(ABC):
             title, and reason (one-line explanation of why this chart is useful).
         """
         ...
+
+    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+        """
+        Generate a one-sentence insight from chart summary data.
+
+        Default implementation returns empty string. Override in subclasses.
+        """
+        return ""
 
     def stream_response(
         self,

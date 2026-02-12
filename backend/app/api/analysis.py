@@ -30,8 +30,20 @@ async def ask_question(
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Build lightweight conversation context string
+    conv_context = ""
+    if body.conversation_context:
+        parts = []
+        for entry in body.conversation_context[-3:]:
+            parts.append(f"Q: {entry.question}\nFindings: {entry.summary}")
+        conv_context = "\n---\n".join(parts)
+
     try:
-        result = analyst.ask(question=body.question, narrate=body.narrate)
+        result = analyst.ask(
+            question=body.question,
+            narrate=body.narrate,
+            conversation_context=conv_context or None,
+        )
     except Exception as e:
         logger.error(f"Ask failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")

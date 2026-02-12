@@ -49,11 +49,21 @@ async def create_chart(
     if chart_path and Path(chart_path).exists():
         image_b64 = base64.b64encode(Path(chart_path).read_bytes()).decode("utf-8")
 
+    # Generate a one-line AI insight from chart summary data
+    insight = None
+    chart_summary = result.get("chart_summary")
+    if chart_summary and image_b64:
+        try:
+            insight = analyst.provider.generate_chart_insight(chart_summary)
+        except Exception:
+            pass  # Insight is optional, don't fail chart creation
+
     return ChartResponse(
         status=result.get("status", "success"),
         chart_type=body.chart_type,
         image_base64=image_b64,
         plotly_json=result.get("plotly_json"),
+        insight=insight,
     )
 
 

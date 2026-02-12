@@ -110,6 +110,7 @@ class OpenAIProvider(LLMProvider):
         analysis_result: Dict[str, Any],
         question: Optional[str] = None,
         skill_name: Optional[str] = None,
+        conversation_context: Optional[str] = None,
     ) -> NarrativeResult:
         """Generate narrative using OpenAI."""
         client = self._get_client()

@@ -15,6 +15,7 @@ export interface ChartHistoryEntry {
   title?: string;
   imageBase64?: string;
   plotlyJson?: Record<string, unknown>;
+  insight?: string;
   createdAt: string;
 }
 

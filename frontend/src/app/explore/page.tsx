@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
-import { askQuestion, type AskResponse } from "@/lib/api";
+import { askQuestion, type AskResponse, type ConversationEntry } from "@/lib/api";
 import { useSession, type ChatMessage } from "@/lib/store";
 import { ResultCard } from "@/components/result-card";
 
@@ -159,8 +159,23 @@ export default function ExplorePage() {
     addExploreMessage({ role: "user", content: q, timestamp: new Date().toISOString() });
     setLoading(true);
 
+    // Build conversation context from last 3 Q&A pairs
+    const context: ConversationEntry[] = [];
+    const msgs = exploreMessages;
+    for (let i = msgs.length - 1; i >= 0 && context.length < 3; i--) {
+      const m = msgs[i];
+      if (m.role === "assistant" && m.data) {
+        // Find the preceding user message
+        const userMsg = i > 0 && msgs[i - 1].role === "user" ? msgs[i - 1] : null;
+        if (userMsg) {
+          const summary = (m.data.narrative || m.content).slice(0, 200);
+          context.unshift({ question: userMsg.content.slice(0, 200), summary });
+        }
+      }
+    }
+
     try {
-      const res = await askQuestion(sessionId, q);
+      const res = await askQuestion(sessionId, q, true, context);
       addExploreMessage({
         role: "assistant",
         content: res.narrative || "Analysis complete.",
@@ -292,20 +307,22 @@ export default function ExplorePage() {
                       <ResultCard result={msg.data.result} skill={msg.data.skill} />
                     )}
 
-                    {/* Key points */}
+                    {/* Key points (clickable — prefills input) */}
                     {msg.data?.key_points && msg.data.key_points.length > 0 && (
                       <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-xl px-4 py-3 space-y-1.5">
                         <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                           Key Points
                         </p>
                         {msg.data.key_points.map((point, j) => (
-                          <div
+                          <button
                             key={j}
-                            className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300"
+                            type="button"
+                            onClick={() => setInput(`Tell me more about: ${point}`)}
+                            className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 w-full text-left cursor-pointer rounded-lg px-2 py-1 -mx-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                           >
                             <span className="text-blue-400 dark:text-blue-500 mt-1 shrink-0">&#8226;</span>
                             <span>{point}</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
