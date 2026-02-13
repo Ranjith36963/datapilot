@@ -174,6 +174,21 @@ export async function askQuestion(
   );
 }
 
+export interface HistoryEntry {
+  question: string;
+  skill: string;
+  narrative?: string;
+  key_points?: string[];
+  confidence?: number;
+  reasoning?: string;
+}
+
+export async function getHistory(
+  sessionId: string
+): Promise<{ status: string; history: HistoryEntry[] }> {
+  return apiFetch("/api/history", {}, sessionId);
+}
+
 export async function runAnalysis(
   sessionId: string,
   skill: string,

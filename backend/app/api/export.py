@@ -36,7 +36,7 @@ async def export_report(
             detail=f"Unsupported format: '{fmt}'. Allowed: {', '.join(sorted(ALLOWED_FORMATS))}",
         )
 
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 

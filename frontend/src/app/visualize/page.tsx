@@ -19,7 +19,7 @@ import {
   type ChartResponse,
   type ChartSuggestion,
 } from "@/lib/api";
-import { useSession, type ChartHistoryEntry } from "@/lib/store";
+import { useValidatedSession, type ChartHistoryEntry } from "@/lib/store";
 
 const CHART_TYPES = [
   "histogram",
@@ -63,8 +63,8 @@ function chartLabel(entry: ChartHistoryEntry): string {
 }
 
 export default function VisualizePage() {
-  const { sessionId, columns, chartHistory, addChartEntry, clearChartHistory } =
-    useSession();
+  const { sessionId, columns, chartHistory, addChartEntry, clearChartHistory, isReady } =
+    useValidatedSession();
 
   const [chartType, setChartType] = useState("histogram");
   const [xCol, setXCol] = useState("");
@@ -111,6 +111,14 @@ export default function VisualizePage() {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [chartHistory.length]);
+
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!sessionId) {
     return (

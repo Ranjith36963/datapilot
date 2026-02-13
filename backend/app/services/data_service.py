@@ -11,8 +11,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("datapilot.backend.data_service")
 
-# Default temp directory
-UPLOAD_DIR = Path(os.environ.get("DATAPILOT_TEMP_DIR", "/tmp/datapilot/uploads"))
+# Project-local upload directory (survives OS temp cleanup)
+_PROJECT_DATA = Path(__file__).resolve().parents[2] / "data"
+UPLOAD_DIR = Path(os.environ.get("DATAPILOT_UPLOAD_DIR", str(_PROJECT_DATA / "uploads")))
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".json", ".parquet", ".tsv"}

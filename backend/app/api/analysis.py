@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Header, HTTPException, Query
 
 from ..models.requests import AnalyzeRequest, AskRequest
-from ..models.responses import AnalyzeResponse, AskResponse, NarrativeResponse
+from ..models.responses import AnalyzeResponse, AskResponse, HistoryEntry, HistoryResponse, NarrativeResponse
 from ..services.analyst import session_manager
 
 logger = logging.getLogger("datapilot.api.analysis")
@@ -26,7 +26,7 @@ async def ask_question(
     narrative generation runs in the background — poll GET /api/narrative
     to retrieve it when ready.
     """
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -47,6 +47,10 @@ async def ask_question(
     except Exception as e:
         logger.error(f"Ask failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+
+    # Persist updated history to SQLite
+    if session_manager._store:
+        await session_manager.persist_history(x_session_id)
 
     return AskResponse(
         status=result.status,
@@ -70,6 +74,40 @@ async def ask_question(
     )
 
 
+@router.get("/history", response_model=HistoryResponse)
+async def get_history(
+    x_session_id: str = Header(..., alias="x-session-id"),
+):
+    """Return analysis history for session restoration on frontend refresh."""
+    # 1. Try in-memory analyst first (richer data)
+    analyst = session_manager.get_session(x_session_id)
+    if analyst and analyst.history:
+        entries = []
+        for entry in analyst.history:
+            entries.append(HistoryEntry(
+                question=entry.question,
+                skill=entry.skill_name,
+                narrative=entry.text[:500] if entry.text else None,
+                key_points=entry.key_points[:5] if entry.key_points else [],
+                confidence=entry.routing.confidence if entry.routing else 0.5,
+                reasoning=(entry.routing.reasoning[:200]
+                           if entry.routing and entry.routing.reasoning else ""),
+            ))
+        return HistoryResponse(history=entries)
+
+    # 2. Fall back to SQLite compact history
+    if session_manager._store:
+        session_data = await session_manager._store.get_session(x_session_id)
+        if session_data and session_data.get("analysis_history"):
+            entries = [
+                HistoryEntry(**h)
+                for h in session_data["analysis_history"]
+            ]
+            return HistoryResponse(history=entries)
+
+    return HistoryResponse(history=[])
+
+
 @router.get("/narrative", response_model=NarrativeResponse)
 async def get_narrative(
     x_session_id: str = Header(..., alias="x-session-id"),
@@ -81,7 +119,7 @@ async def get_narrative(
     Blocks up to `timeout` seconds for background narration to finish.
     Returns immediately if narrative is already available or was not requested.
     """
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -115,7 +153,7 @@ async def run_analysis(
 
     Bypasses LLM routing — specify the exact skill name and parameters.
     """
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 

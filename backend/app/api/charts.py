@@ -23,7 +23,7 @@ async def create_chart(
     x_session_id: str = Header(..., alias="x-session-id"),
 ):
     """Create a chart from the uploaded dataset."""
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -72,7 +72,7 @@ async def suggest_chart(
     x_session_id: str = Header(..., alias="x-session-id"),
 ):
     """Ask the LLM to suggest the best chart for this dataset."""
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 

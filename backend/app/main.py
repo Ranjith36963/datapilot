@@ -55,12 +55,33 @@ async def lifespan(app: FastAPI):
     except ImportError as e:
         logger.error(f"Cannot import datapilot engine: {e}")
 
+    # Initialize SQLite session persistence
+    from .services.session_store import SessionStore
+
+    session_store = SessionStore()
+    await session_store.init_db()
+    session_manager.set_store(session_store)
+
+    # Cleanup expired sessions (>24 hours old)
+    cleaned = await session_store.cleanup_expired(max_age_hours=24)
+    if cleaned > 0:
+        logger.info(f"Cleaned up {cleaned} expired sessions on startup")
+
+    # Log recoverable sessions
+    sessions = await session_store.list_sessions()
+    if sessions:
+        logger.info(
+            f"{len(sessions)} sessions available for recovery from SQLite"
+        )
+    else:
+        logger.info("Starting fresh — no persisted sessions")
+
     yield
 
-    # Shutdown: cleanup temp files
+    # Shutdown: close session store (uploaded files kept for restoration)
     logger.info("DataPilot backend shutting down...")
-    data_service = DataService()
-    data_service.cleanup_all()
+    await session_store.close()
+    logger.info("SessionStore closed")
 
 
 # ---------------------------------------------------------------------------

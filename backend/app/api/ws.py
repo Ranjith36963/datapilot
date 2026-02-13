@@ -49,7 +49,7 @@ async def chat_websocket(websocket: WebSocket):
                 })
                 continue
 
-            analyst = session_manager.get_session(session_id)
+            analyst = await session_manager.get_or_restore_session(session_id)
             if not analyst:
                 await websocket.send_json({
                     "type": "error",

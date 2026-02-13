@@ -36,9 +36,9 @@
 - /docs/ — API reference, architecture, quick start
 
 ## Phase 2 Deliverables
-- D1: Multi-LLM (Gemini + task-aware failover) ← CURRENT
-- D2: SQLite session persistence (replace in-memory dict)
-- D3: Dataset fingerprinting (3-layer domain detection + explainability)
+- D1: Multi-LLM (Gemini + task-aware failover) ✓
+- D2: SQLite session persistence (two-tier cache: in-memory + SQLite) ✓
+- D3: Dataset fingerprinting (3-layer domain detection + explainability) ← CURRENT
 - D4: Auto-pilot analysis (domain-aware recipes, confidence tiers, skill budget)
 - D5: Domain-specific narrative templates (45 templates across 9 skills × 6 domains)
 

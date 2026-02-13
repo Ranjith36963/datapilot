@@ -35,6 +35,9 @@ plotly>=5.18
 openai>=1.0
 google-genai>=1.0
 
+# Session persistence
+aiosqlite>=0.19
+
 # Utilities
 python-dotenv>=1.0
 joblib>=1.3

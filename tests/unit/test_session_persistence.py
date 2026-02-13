@@ -616,18 +616,22 @@ class TestEdgeCases:
     """Additional edge cases for robustness."""
 
     def test_concurrent_sessions_isolated(self, store, two_csv_files):
-        """Two sessions with different data must be fully isolated."""
+        """Two sessions with different data must be fully isolated.
+        Tests store-level isolation directly (bypasses SessionManager's
+        single-project invariant which deletes old sessions on new upload)."""
         file_a, file_b = two_csv_files
 
         async def _test():
-            mgr = SessionManager()
-            mgr.set_store(store)
-
-            mgr.create_session("iso-a", str(file_a))
-            await mgr.persist_new_session("iso-a", str(file_a))
-
-            mgr.create_session("iso-b", str(file_b))
-            await mgr.persist_new_session("iso-b", str(file_b))
+            await store.create_session(
+                session_id="iso-a", filename=file_a.name,
+                file_path=str(file_a), columns=["product", "price", "quantity"],
+                shape={"rows": 2, "columns": 3},
+            )
+            await store.create_session(
+                session_id="iso-b", filename=file_b.name,
+                file_path=str(file_b), columns=["city", "population", "area"],
+                shape={"rows": 3, "columns": 3},
+            )
 
             await store.update_history("iso-a", [
                 {"question": "Q from A", "skill": "s1",

@@ -10,7 +10,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { exportReport, getDownloadUrl, type ExportResponse } from "@/lib/api";
-import { useSession } from "@/lib/store";
+import { useValidatedSession } from "@/lib/store";
 
 const FORMATS = [
   {
@@ -34,7 +34,7 @@ const FORMATS = [
 ];
 
 export default function ExportPage() {
-  const { sessionId } = useSession();
+  const { sessionId, isReady } = useValidatedSession();
 
   const [format, setFormat] = useState("pdf");
   const [title, setTitle] = useState("");
@@ -42,6 +42,14 @@ export default function ExportPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!sessionId) {
     return (

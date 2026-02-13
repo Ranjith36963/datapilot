@@ -51,7 +51,22 @@
       "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -m pytest tests/ -v)",
       "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -m pytest tests/unit/test_gemini_provider.py -v)",
       "Bash(\"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\" -c:*)",
-      "Bash(PYTHONPATH=engine \"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\":*)"
+      "Bash(PYTHONPATH=engine \"C:/Users/Ranjith/datapilot/backend/.venv/Scripts/python.exe\":*)",
+      "Bash(pushd:*)",
+      "Bash(popd:*)",
+      "Bash(git -C C:UsersRanjithdatapilot diff --stat)",
+      "Bash(dir:*)",
+      "Bash(Remove-Item -Recurse -Force .next)",
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Ranjith\\\\datapilot\\\\frontend'; Remove-Item -Recurse -Force .next; npm run build\":*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(powershell -Command \"cd ''C:\\\\Users\\\\Ranjith\\\\datapilot\\\\frontend''; if \\(Test-Path .next\\) { Remove-Item -Recurse -Force .next }; npm run build 2>&1\")",
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Ranjith\\\\datapilot'; python -m pytest tests/ -v 2>&1\":*)",
+      "Bash(powershell -Command:*)",
+      "Bash(git -C \"C:\\\\Users\\\\Ranjith\\\\datapilot\" diff)",
+      "Bash(git -C \"C:\\\\Users\\\\Ranjith\\\\datapilot\" log --oneline -5)",
+      "Bash(git -C \"C:\\\\Users\\\\Ranjith\\\\datapilot\" add -A)",
+      "Bash(git -C \"C:\\\\Users\\\\Ranjith\\\\datapilot\" commit -m \"$\\(cat <<''EOF''\nfeat: complete D2 — full session persistence across refresh and restart\n\nThree bugs fixed to make all 23 persistence tests pass \\(TDD green phase\\):\n\n1. Single-project invariant: persist_new_session now calls\n   delete_all_except\\(\\) to remove old sessions from SQLite when a new\n   dataset is uploaded \\(new SessionStore.delete_all_except method\\).\n\n2. History merge on restore: persist_history now prepends\n   _restored_history \\(from SQLite\\) before new engine entries, preventing\n   overwrite of old history when analyst.history is empty after restore.\n\n3. Concurrent isolation test adapted to use store-level creation\n   \\(bypassing SessionManager''s single-project enforcement\\) since it\n   tests SQLite row isolation, not upload workflow.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   },
   "hooks": {

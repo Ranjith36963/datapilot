@@ -39,6 +39,7 @@ frontend/.env*.local
 
 # Backend temp files
 /tmp/datapilot/
+backend/data/
 
 # Environment
 .env

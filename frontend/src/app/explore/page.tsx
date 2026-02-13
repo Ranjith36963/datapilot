@@ -16,8 +16,8 @@ import {
   ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
-import { askQuestion, type AskResponse, type ConversationEntry } from "@/lib/api";
-import { useSession, type ChatMessage } from "@/lib/store";
+import { askQuestion, getHistory, type AskResponse, type ConversationEntry } from "@/lib/api";
+import { useValidatedSession, type ChatMessage } from "@/lib/store";
 import { ResultCard } from "@/components/result-card";
 
 const SUGGESTED_QUESTIONS = [
@@ -129,7 +129,7 @@ function TrustHeader({ data }: { data: AskResponse }) {
 }
 
 export default function ExplorePage() {
-  const { sessionId, filename, columns, exploreMessages, addExploreMessage } = useSession();
+  const { sessionId, filename, columns, exploreMessages, addExploreMessage, setExploreMessages, isReady } = useValidatedSession();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -137,6 +137,60 @@ export default function ExplorePage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [exploreMessages]);
+
+  // Restore chat history from backend on refresh
+  const historyFetched = useRef(false);
+  useEffect(() => {
+    if (!isReady || !sessionId || historyFetched.current) return;
+    if (exploreMessages.length > 0) {
+      historyFetched.current = true;
+      return;
+    }
+    historyFetched.current = true;
+    getHistory(sessionId)
+      .then((res) => {
+        if (!res.history || res.history.length === 0) return;
+        const msgs: ChatMessage[] = [];
+        for (const entry of res.history) {
+          msgs.push({
+            role: "user",
+            content: entry.question,
+            timestamp: new Date().toISOString(),
+          });
+          msgs.push({
+            role: "assistant",
+            content: entry.narrative || "Analysis complete.",
+            data: {
+              status: "success",
+              question: entry.question,
+              skill: entry.skill,
+              confidence: entry.confidence ?? 0.5,
+              reasoning: entry.reasoning || "Restored from previous session",
+              route_method: "restored",
+              narrative: entry.narrative,
+              key_points: entry.key_points ?? [],
+              suggestions: [],
+              columns_used: [],
+              elapsed_seconds: 0,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+        setExploreMessages(msgs);
+      })
+      .catch(() => {
+        // Silently fail — empty chat is fine
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, sessionId]);
+
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
+        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (!sessionId) {
     return (

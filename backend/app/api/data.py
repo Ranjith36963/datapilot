@@ -48,6 +48,10 @@ async def upload_file(file: UploadFile = File(...)):
         data_service.cleanup_session(session_id)
         raise HTTPException(status_code=422, detail=f"Failed to load data: {e}")
 
+    # Persist session to SQLite
+    if session_manager._store:
+        await session_manager.persist_new_session(session_id, str(file_path))
+
     # Build column info
     from datapilot.core.router import build_data_context
     ctx = build_data_context(analyst.df)
@@ -81,7 +85,7 @@ async def get_preview(
     x_session_id: str = Header(..., alias="x-session-id"),
 ):
     """Preview the first N rows of the uploaded dataset."""
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -100,7 +104,7 @@ async def get_profile(
     x_session_id: str = Header(..., alias="x-session-id"),
 ):
     """Get the full dataset profile."""
-    analyst = session_manager.get_session(x_session_id)
+    analyst = await session_manager.get_or_restore_session(x_session_id)
     if not analyst:
         raise HTTPException(status_code=404, detail="Session not found")
 
