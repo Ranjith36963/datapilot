@@ -213,16 +213,43 @@ class SessionStore:
             )
 
     async def delete_all_except(self, keep_session_id: str) -> int:
-        """Delete all sessions except the given one (single-project invariant)."""
+        """Delete all sessions except the given one (single-project invariant).
+
+        Also deletes uploaded files from disk (same pattern as cleanup_expired).
+        """
         if self._db is None:
             return 0
         try:
+            # Fetch file paths before deleting rows
             cursor = await self._db.execute(
+                "SELECT session_id, file_path FROM sessions WHERE session_id != ?",
+                (keep_session_id,),
+            )
+            doomed = await cursor.fetchall()
+
+            if not doomed:
+                return 0
+
+            # Delete files from disk
+            for row in doomed:
+                file_path = row["file_path"]
+                try:
+                    p = Path(file_path)
+                    if p.exists():
+                        p.unlink()
+                    parent = p.parent
+                    if parent.exists() and not any(parent.iterdir()):
+                        parent.rmdir()
+                except Exception as e:
+                    logger.warning(f"Failed to delete file {file_path}: {e}")
+
+            # Delete DB rows
+            await self._db.execute(
                 "DELETE FROM sessions WHERE session_id != ?",
                 (keep_session_id,),
             )
             await self._db.commit()
-            count = cursor.rowcount
+            count = len(doomed)
             if count > 0:
                 logger.info(f"Deleted {count} old session(s), keeping {keep_session_id}")
             return count

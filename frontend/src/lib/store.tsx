@@ -111,13 +111,23 @@ const useSessionStore = create<SessionStore>()(
     }),
     {
       name: "datapilot-session",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => ({
+        getItem: (name: string) => localStorage.getItem(name),
+        setItem: (name: string, value: string) => {
+          try {
+            localStorage.setItem(name, value);
+          } catch {
+            // QuotaExceededError — silently drop; data survives in memory
+          }
+        },
+        removeItem: (name: string) => localStorage.removeItem(name),
+      })),
       partialize: (state) => ({
         sessionId: state.sessionId,
         filename: state.filename,
         columns: state.columns,
         shape: state.shape,
-        chartHistory: state.chartHistory,
+        chartHistory: state.chartHistory.slice(-5),
       }),
     }
   )

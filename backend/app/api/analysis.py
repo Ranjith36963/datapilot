@@ -81,8 +81,12 @@ async def get_history(
     """Return analysis history for session restoration on frontend refresh."""
     # 1. Try in-memory analyst first (richer data)
     analyst = session_manager.get_session(x_session_id)
-    if analyst and analyst.history:
+    if analyst and (analyst.history or getattr(analyst, "_restored_history", None)):
         entries = []
+        # Merge restored history (from previous SQLite session) with new entries
+        restored = getattr(analyst, "_restored_history", None) or []
+        for h in restored:
+            entries.append(HistoryEntry(**h))
         for entry in analyst.history:
             entries.append(HistoryEntry(
                 question=entry.question,

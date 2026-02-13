@@ -122,7 +122,10 @@ class SessionManager:
         if not analyst:
             return
         try:
-            # Single-project invariant: remove old sessions from SQLite
+            # Single-project invariant: remove old sessions from memory and SQLite
+            old_ids = [sid for sid in self._sessions if sid != session_id]
+            for sid in old_ids:
+                del self._sessions[sid]
             await self._store.delete_all_except(session_id)
 
             filename = Path(file_path).name
