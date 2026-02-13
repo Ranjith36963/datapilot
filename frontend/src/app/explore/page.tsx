@@ -356,9 +356,18 @@ export default function ExplorePage() {
                       </p>
                     </div>
 
-                    {/* Result data card */}
-                    {hasResultData(msg.data) && (
+                    {/* Result data card — or restored-session placeholder */}
+                    {hasResultData(msg.data) ? (
                       <ResultCard result={msg.data.result} skill={msg.data.skill} />
+                    ) : msg.data?.route_method === "restored" && (
+                      <button
+                        type="button"
+                        onClick={() => setInput(msg.data!.question)}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                      >
+                        <Clock className="h-3 w-3" />
+                        Restored from previous session &middot; Re-ask for full details
+                      </button>
                     )}
 
                     {/* Key points (clickable — prefills input) */}
