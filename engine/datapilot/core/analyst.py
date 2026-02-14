@@ -380,6 +380,80 @@ def _template_narrative(
             suggestions.append(f"Show me a box plot of {value_col} by {group_col}")
         suggestions.append("What are the key correlations?")
 
+    elif skill_name == "query_data":
+        total = result.get("total_rows", 0)
+        desc = result.get("query_description", "custom filter")
+        text = f"Found {total} rows matching your query ({desc})."
+        data = result.get("data", [])
+        if isinstance(data, list):
+            for item in data[:3]:
+                vals = list(item.values())
+                if vals:
+                    key_points.append(" | ".join(str(v) for v in vals[:4]))
+        suggestions = _col_suggestions()
+
+    elif skill_name == "pivot_table":
+        idx = result.get("index_column", "?")
+        vals_col = result.get("values_column", "?")
+        aggfunc = result.get("aggfunc", "mean")
+        text = f"Pivot table: {aggfunc} of {vals_col} grouped by {idx}."
+        data = result.get("data", [])
+        if isinstance(data, list):
+            for item in data[:5]:
+                vals = list(item.values())
+                if len(vals) >= 2:
+                    key_points.append(f"{vals[0]}: {_fmt(vals[1])}")
+        suggestions = _col_suggestions()
+
+    elif skill_name == "value_counts":
+        column = result.get("column", "?")
+        total = result.get("total_values", 0)
+        text = f"Frequency distribution of {column} ({total} total values)."
+        data = result.get("data", {})
+        if isinstance(data, dict):
+            for k, v in list(data.items())[:5]:
+                key_points.append(f"{k}: {v}")
+        suggestions = _col_suggestions()
+
+    elif skill_name == "top_n":
+        n = result.get("n", 10)
+        column = result.get("column", "?")
+        direction = result.get("direction", "top")
+        text = f"{direction.title()} {n} records ranked by {column}."
+        data = result.get("data", [])
+        if isinstance(data, list):
+            for item in data[:5]:
+                vals = list(item.values())
+                if vals:
+                    key_points.append(" | ".join(str(v) for v in vals[:4]))
+        suggestions = _col_suggestions()
+
+    elif skill_name == "cross_tab":
+        row_col = result.get("row_column", "?")
+        col_col = result.get("col_column", "?")
+        text = f"Cross-tabulation of {row_col} vs {col_col}."
+        data = result.get("data", [])
+        if isinstance(data, list):
+            for item in data[:5]:
+                vals = list(item.values())
+                if len(vals) >= 2:
+                    key_points.append(f"{vals[0]}: {', '.join(str(v) for v in vals[1:4])}")
+        suggestions = _col_suggestions()
+
+    elif skill_name == "smart_query":
+        code = result.get("generated_code", "")
+        total = result.get("total_rows", "?")
+        text = f"Custom query executed successfully ({total} rows in result)."
+        if code:
+            key_points.append(f"Code: {code[:80]}...")
+        data = result.get("data", [])
+        if isinstance(data, list):
+            for item in data[:3]:
+                vals = list(item.values())
+                if vals:
+                    key_points.append(" | ".join(str(v) for v in vals[:4]))
+        suggestions = _col_suggestions()
+
     else:
         # Smart generic: extract numeric results for any unhandled skill
         readable = skill_name.replace("_", " ").title()
@@ -604,6 +678,8 @@ class Analyst:
             skill_name=routing.skill_name,
             df=self.df,
             parameters=routing.parameters,
+            question=question,
+            llm_provider=self.provider,
         )
         t2 = time.perf_counter()
         execution_ms = (t2 - t1) * 1000

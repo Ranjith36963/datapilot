@@ -68,6 +68,8 @@ class Executor:
         skill_name: str,
         df,
         parameters: Optional[Dict[str, Any]] = None,
+        question: Optional[str] = None,
+        llm_provider: Optional[Any] = None,
     ) -> ExecutionResult:
         """Execute a skill function against a DataFrame.
 
@@ -93,7 +95,7 @@ class Executor:
             )
 
         # Filter parameters to only those the function accepts
-        filtered = self._filter_params(func, df, parameters)
+        filtered = self._filter_params(func, df, parameters, question=question, llm_provider=llm_provider)
 
         # Generate code snippet
         code_snippet = self._build_code_snippet(skill_name, filtered)
@@ -172,6 +174,8 @@ class Executor:
         func,
         df,
         parameters: Dict[str, Any],
+        question: Optional[str] = None,
+        llm_provider: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Build the keyword arguments for a skill function.
 
@@ -217,6 +221,12 @@ class Executor:
             for key, value in parameters.items():
                 if key not in filtered:
                     filtered[key] = value
+
+        # Inject execution context for query skills
+        if "question" in sig.parameters and "question" not in filtered and question is not None:
+            filtered["question"] = question
+        if "llm_provider" in sig.parameters and "llm_provider" not in filtered and llm_provider is not None:
+            filtered["llm_provider"] = llm_provider
 
         return filtered
 
@@ -297,6 +307,8 @@ class Executor:
                 args.append(f'{key}=df')
             elif key in ("file_path", "filepath", "path"):
                 args.append(f'{key}="your_data.csv"')
+            elif key in ("question", "llm_provider"):
+                continue  # Execution context, not user-facing
             elif isinstance(val, str):
                 args.append(f'{key}="{val}"')
             elif isinstance(val, (list, tuple)):

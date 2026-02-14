@@ -257,6 +257,46 @@ def _extract_describe_columns(
 # Each entry: (patterns, skill_name, default_params, confidence, reasoning_template)
 
 _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
+    # Data querying — filter/select rows
+    (
+        [r"\bfilter\b", r"\bwhere\b", r"\bshow\b.*\brows?\b",
+         r"\bselect\b.*\bwhere\b", r"\brows?\b.*\bwhere\b",
+         r"\bquery\b(?!.*\bsmart\b)"],
+        "query_data", {}, 0.88,
+        "Matched: '{matched}' -> query_data",
+    ),
+    # Pivot / aggregation by group
+    (
+        [r"\bpivot\b", r"\baverage\b.*\bby\b", r"\bmean\b.*\bby\b",
+         r"\bsum\b.*\bby\b", r"\baggregate\b.*\bby\b",
+         r"\bgroup\b.*\b(?:average|mean|sum|count)\b",
+         r"\btotal\b.*\bby\b"],
+        "pivot_table", {}, 0.88,
+        "Matched: '{matched}' -> pivot_table",
+    ),
+    # Value counts / frequency
+    (
+        [r"\bhow many\b.*\bper\b", r"\bfrequency\b", r"\bvalue.?counts?\b",
+         r"\bcount\b.*\bper\b", r"\bcount\b.*\beach\b",
+         r"\bnumber of\b.*\bper\b", r"\bnumber of\b.*\beach\b"],
+        "value_counts", {}, 0.90,
+        "Matched: '{matched}' -> value_counts",
+    ),
+    # Top N / ranking
+    (
+        [r"\btop\s+\d+\b", r"\bbottom\s+\d+\b", r"\bhighest\b",
+         r"\blowest\b", r"\branking?\b", r"\bbest\b.*\d+",
+         r"\bworst\b.*\d+", r"\blargest\b", r"\bsmallest\b"],
+        "top_n", {}, 0.90,
+        "Matched: '{matched}' -> top_n",
+    ),
+    # Cross-tabulation
+    (
+        [r"\bcross.?tab", r"\bcrosstab", r"\bcontingency\b",
+         r"\b(?:breakdown|split)\b.*\bby\b.*\band\b"],
+        "cross_tab", {}, 0.88,
+        "Matched: '{matched}' -> cross_tab",
+    ),
     # Profiling / overview / general insights
     (
         [r"\boverview\b", r"\bprofile\b", r"\bsummar(?:y|ize)\b", r"\bdescribe the data\b",
