@@ -297,12 +297,11 @@ _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
         "cross_tab", {}, 0.88,
         "Matched: '{matched}' -> cross_tab",
     ),
-    # Profiling / overview / general insights
+    # Profiling / overview — only match explicit profiling requests
     (
         [r"\boverview\b", r"\bprofile\b", r"\bsummar(?:y|ize)\b", r"\bdescribe the data\b",
          r"\btell me about\b.*\bdata\b", r"\bwhat.s in\b.*\bdata",
-         r"\bpatterns?\b", r"\binsights?\b", r"\bwhat do you see\b",
-         r"\btell me about\b", r"\bwhat can you tell\b"],
+         r"\bwhat do you see\b"],
         "profile_data", {}, 0.85,
         "Matched: '{matched}' -> profile_data",
     ),
@@ -346,8 +345,7 @@ _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
          r"\bpredict\b.*\bchurn\b", r"\bwhat\b.*\bpredict",
          r"\bwhich features predict\b", r"\bfeature importance\b",
          r"\bchurn\b.*\b(?:model|predict|analys|classify|rate|risk)\b",
-         r"\b(?:model|predict|analys|classify)\b.*\bchurn\b",
-         r"\bchurn\b"],
+         r"\b(?:model|predict|analys|classify)\b.*\bchurn\b"],
         "classify", {}, 0.90,
         "Matched: '{matched}' -> classify",
     ),
@@ -367,8 +365,7 @@ _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
     # Time series
     (
         [r"\btime.?series\b", r"\bforecast\b", r"\btrend\b.*\bover time\b",
-         r"\bseasonal", r"\bover time\b", r"\bpredict future\b",
-         r"\btrend\b"],
+         r"\bseasonal", r"\bover time\b", r"\bpredict future\b"],
         "forecast", {}, 0.88,
         "Matched: '{matched}' -> forecast",
     ),
@@ -788,14 +785,23 @@ class Router:
             if result is not None:
                 result = _enrich_parameters(result, question, data_context)
                 return result
+            # LLM tried but couldn't determine a skill
+            logger.warning("LLM routing returned no result, falling back to profile_data")
+            return RoutingResult(
+                skill_name="profile_data",
+                parameters={},
+                confidence=0.3,
+                reasoning="LLM could not determine the best skill for this question",
+                route_method="fallback",
+            )
 
-        # 3. Last resort: profile_data
-        logger.warning("All LLM routing failed, falling back to profile_data")
+        # 3. Last resort: no LLM provider configured
+        logger.warning("No LLM provider available, falling back to profile_data")
         return RoutingResult(
             skill_name="profile_data",
             parameters={},
             confidence=0.3,
-            reasoning="Fallback: LLM routing unavailable, defaulting to data profile",
+            reasoning="No LLM provider configured — defaulting to data profile",
             route_method="fallback",
         )
 
@@ -812,6 +818,9 @@ class Router:
                 data_context=data_context,
                 skill_catalog=self.skill_catalog,
             )
+            if result is None:
+                logger.warning(f"{type(provider).__name__} returned None")
+                return None
             if result.confidence <= 0.1 and result.skill_name == "profile_data":
                 logger.warning(
                     f"{type(provider).__name__} returned fallback result"
