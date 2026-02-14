@@ -285,6 +285,24 @@ export async function getFingerprint(
   );
 }
 
+export interface AutopilotStatusResponse {
+  status: "unavailable" | "planning" | "running" | "complete" | "failed";
+  completed_steps?: number | null;
+  total_steps?: number | null;
+  results?: { step: string; status: string }[] | null;
+  summary?: string | null;
+}
+
+export async function getAutopilotStatus(
+  sessionId: string
+): Promise<AutopilotStatusResponse> {
+  return apiFetch<AutopilotStatusResponse>(
+    `/api/autopilot/${sessionId}`,
+    {},
+    sessionId
+  );
+}
+
 // ---------------------------------------------------------------------------
 // WebSocket
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { getPreview } from "./api";
-import type { ColumnInfo, AskResponse } from "./api";
+import type { ColumnInfo, AskResponse, DomainFingerprintResponse, AutopilotStatusResponse } from "./api";
 
 // Types for chart history entries
 export interface ChartHistoryEntry {
@@ -36,6 +36,13 @@ interface SessionStore {
   columns: ColumnInfo[];
   preview: Record<string, unknown>[];
 
+  // Domain fingerprint data
+  fingerprint: DomainFingerprintResponse | null;
+
+  // Autopilot state
+  autopilotStatus: AutopilotStatusResponse | null;
+  suggestedQuestions: string[];
+
   // Explore page state
   exploreMessages: ChatMessage[];
 
@@ -51,6 +58,11 @@ interface SessionStore {
     preview: Record<string, unknown>[];
   }) => void;
   clearSession: () => void;
+  setFingerprint: (fingerprint: DomainFingerprintResponse) => void;
+  clearFingerprint: () => void;
+  setAutopilotStatus: (status: AutopilotStatusResponse) => void;
+  clearAutopilotStatus: () => void;
+  setSuggestedQuestions: (questions: string[]) => void;
   addExploreMessage: (msg: ChatMessage) => void;
   setExploreMessages: (msgs: ChatMessage[]) => void;
   clearExploreMessages: () => void;
@@ -67,6 +79,9 @@ const useSessionStore = create<SessionStore>()(
       shape: null,
       columns: [],
       preview: [],
+      fingerprint: null,
+      autopilotStatus: null,
+      suggestedQuestions: [],
       exploreMessages: [],
       chartHistory: [],
 
@@ -80,6 +95,9 @@ const useSessionStore = create<SessionStore>()(
           preview: data.preview,
           exploreMessages: [],
           chartHistory: [],
+          fingerprint: null,
+          autopilotStatus: null,
+          suggestedQuestions: [],
         }),
 
       clearSession: () =>
@@ -91,7 +109,20 @@ const useSessionStore = create<SessionStore>()(
           preview: [],
           exploreMessages: [],
           chartHistory: [],
+          fingerprint: null,
+          autopilotStatus: null,
+          suggestedQuestions: [],
         }),
+
+      setFingerprint: (fingerprint) => set({ fingerprint }),
+
+      clearFingerprint: () => set({ fingerprint: null }),
+
+      setAutopilotStatus: (status) => set({ autopilotStatus: status }),
+
+      clearAutopilotStatus: () => set({ autopilotStatus: null }),
+
+      setSuggestedQuestions: (questions) => set({ suggestedQuestions: questions }),
 
       addExploreMessage: (msg) =>
         set((state) => ({
@@ -150,10 +181,18 @@ export function useValidatedSession() {
   const shape = useSessionStore((s) => s.shape);
   const columns = useSessionStore((s) => s.columns);
   const preview = useSessionStore((s) => s.preview);
+  const fingerprint = useSessionStore((s) => s.fingerprint);
+  const autopilotStatus = useSessionStore((s) => s.autopilotStatus);
+  const suggestedQuestions = useSessionStore((s) => s.suggestedQuestions);
   const exploreMessages = useSessionStore((s) => s.exploreMessages);
   const chartHistory = useSessionStore((s) => s.chartHistory);
   const setSession = useSessionStore((s) => s.setSession);
   const clearSession = useSessionStore((s) => s.clearSession);
+  const setFingerprint = useSessionStore((s) => s.setFingerprint);
+  const clearFingerprint = useSessionStore((s) => s.clearFingerprint);
+  const setAutopilotStatus = useSessionStore((s) => s.setAutopilotStatus);
+  const clearAutopilotStatus = useSessionStore((s) => s.clearAutopilotStatus);
+  const setSuggestedQuestions = useSessionStore((s) => s.setSuggestedQuestions);
   const addExploreMessage = useSessionStore((s) => s.addExploreMessage);
   const setExploreMessages = useSessionStore((s) => s.setExploreMessages);
   const clearExploreMessages = useSessionStore((s) => s.clearExploreMessages);
@@ -242,8 +281,13 @@ export function useValidatedSession() {
 
   return {
     sessionId, filename, shape, columns, preview,
+    fingerprint,
+    autopilotStatus, suggestedQuestions,
     exploreMessages, chartHistory,
     setSession, clearSession,
+    setFingerprint, clearFingerprint,
+    setAutopilotStatus, clearAutopilotStatus,
+    setSuggestedQuestions,
     addExploreMessage, setExploreMessages, clearExploreMessages,
     addChartEntry, clearChartHistory,
     isReady,

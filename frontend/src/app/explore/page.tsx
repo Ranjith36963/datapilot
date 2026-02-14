@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Send,
   Loader2,
@@ -15,19 +15,23 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldQuestion,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { askQuestion, getHistory, type AskResponse, type ConversationEntry } from "@/lib/api";
 import { useValidatedSession, type ChatMessage } from "@/lib/store";
 import { ResultCard } from "@/components/result-card";
 import { DomainBadge, DomainBadgeSkeleton, DomainBadgeError } from "@/components/DomainBadge";
 import { useFingerprint } from "@/hooks/useFingerprint";
+import { useAutopilot } from "@/hooks/useAutopilot";
 
-const SUGGESTED_QUESTIONS = [
+const FALLBACK_QUESTIONS = [
   "Give me an overview of the data",
   "What are the key correlations?",
   "Are there any outliers?",
-  "Describe the numeric columns",
-  "What patterns do you see?",
 ];
 
 function hasResultData(data?: AskResponse): data is AskResponse & { result: Record<string, unknown> } {
@@ -137,6 +141,8 @@ export default function ExplorePage() {
     columns,
     fingerprint: cachedFingerprint,
     setFingerprint,
+    autopilotStatus: cachedAutopilotStatus,
+    setAutopilotStatus,
     exploreMessages,
     addExploreMessage,
     setExploreMessages,
@@ -159,6 +165,25 @@ export default function ExplorePage() {
       setFingerprint(fingerprint);
     }
   }, [fingerprint, cachedFingerprint, setFingerprint]);
+
+  const suggestedQuestions = useMemo(() => {
+    if (fingerprint?.suggested_questions && fingerprint.suggested_questions.length > 0) {
+      return fingerprint.suggested_questions;
+    }
+    return FALLBACK_QUESTIONS;
+  }, [fingerprint]);
+
+  // Autopilot polling
+  const {
+    status: apStatus,
+    results: apResults,
+    summary: apSummary,
+    completedSteps: apCompleted,
+    totalSteps: apTotal,
+    isLoading: apLoading,
+  } = useAutopilot(sessionId, cachedAutopilotStatus, setAutopilotStatus);
+
+  const [insightsCollapsed, setInsightsCollapsed] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -313,7 +338,7 @@ export default function ExplorePage() {
           Try asking
         </h3>
         <ul className="space-y-1">
-          {SUGGESTED_QUESTIONS.map((q) => (
+          {suggestedQuestions.map((q) => (
             <li key={q}>
               <button
                 onClick={() => handleSend(q)}
@@ -331,6 +356,157 @@ export default function ExplorePage() {
       <div className="flex-1 flex flex-col">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+          {/* AI Insights (autopilot) section */}
+          {apStatus && apStatus !== "unavailable" && (
+            <div className="max-w-3xl mx-auto">
+              <div className="rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 overflow-hidden">
+                {/* Collapsible header */}
+                <button
+                  type="button"
+                  onClick={() => setInsightsCollapsed((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                      AI Insights
+                    </span>
+                    {apLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
+                    ) : apStatus === "complete" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : apStatus === "failed" ? (
+                      <XCircle className="h-3.5 w-3.5 text-red-500" />
+                    ) : null}
+                    {apTotal > 0 && (
+                      <span className="text-xs text-blue-500 dark:text-blue-400">
+                        {apCompleted}/{apTotal} steps
+                      </span>
+                    )}
+                  </div>
+                  {insightsCollapsed ? (
+                    <ChevronDown className="h-4 w-4 text-blue-400" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4 text-blue-400" />
+                  )}
+                </button>
+
+                {/* Collapsible body */}
+                {!insightsCollapsed && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {/* Progress bar */}
+                    {apTotal > 0 && (
+                      <div className="w-full bg-blue-100 dark:bg-blue-900/40 rounded-full h-1.5">
+                        <div
+                          className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.round((apCompleted / apTotal) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Planning status */}
+                    {apStatus === "planning" && (
+                      <p className="text-xs text-blue-500 dark:text-blue-400 animate-pulse">
+                        Planning analysis steps...
+                      </p>
+                    )}
+
+                    {/* Step result cards */}
+                    {apResults && apResults.length > 0 && (
+                      <div className="space-y-2">
+                        {apResults.map((r, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                              r.status === "error"
+                                ? "bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900"
+                                : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900"
+                            }`}
+                          >
+                            {r.status === "error" ? (
+                              <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            )}
+                            <span
+                              className={`flex-1 ${
+                                r.status === "error"
+                                  ? "text-red-700 dark:text-red-300"
+                                  : "text-emerald-700 dark:text-emerald-300"
+                              }`}
+                            >
+                              {r.step.replace(/_/g, " ")}
+                            </span>
+                            <span
+                              className={`text-xs px-1.5 py-0.5 rounded ${
+                                r.status === "error"
+                                  ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                                  : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
+                              {r.status}
+                            </span>
+                          </div>
+                        ))}
+
+                        {/* Pending skeleton cards for remaining steps while running */}
+                        {apStatus === "running" &&
+                          apTotal > 0 &&
+                          apCompleted < apTotal &&
+                          Array.from({ length: apTotal - apCompleted }).map((_, idx) => (
+                            <div
+                              key={`pending-${idx}`}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
+                            >
+                              <div className="h-3.5 w-3.5 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                              <div className="flex-1 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {/* Skeleton cards when running but no results yet */}
+                    {apStatus === "running" && (!apResults || apResults.length === 0) && (
+                      <div className="space-y-2">
+                        {Array.from({ length: 3 }).map((_, idx) => (
+                          <div
+                            key={`skel-${idx}`}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
+                          >
+                            <div className="h-3.5 w-3.5 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                            <div className="flex-1 h-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Executive summary */}
+                    {apSummary && (
+                      <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3">
+                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
+                          Executive Summary
+                        </p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                          {apSummary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Error fallback */}
+                    {apStatus === "failed" && !apSummary && (
+                      <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                        <XCircle className="h-4 w-4 shrink-0" />
+                        <span>Auto-pilot analysis failed. You can still ask questions manually below.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {exploreMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
@@ -338,7 +514,7 @@ export default function ExplorePage() {
                 Ask a question about your data
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                {SUGGESTED_QUESTIONS.slice(0, 3).map((q) => (
+                {suggestedQuestions.slice(0, 3).map((q) => (
                   <button
                     key={q}
                     onClick={() => handleSend(q)}
