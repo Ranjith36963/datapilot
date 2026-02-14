@@ -259,7 +259,7 @@ def _extract_describe_columns(
 _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
     # Data querying — filter/select rows
     (
-        [r"\bfilter\b", r"\bwhere\b", r"\bshow\b.*\brows?\b",
+        [r"\bfilter\b", r"\bwhere\b.*\b(=|>|<|is|equals|==)\b", r"\bshow\b.*\brows?\b",
          r"\bselect\b.*\bwhere\b", r"\brows?\b.*\bwhere\b",
          r"\bquery\b(?!.*\bsmart\b)"],
         "query_data", {}, 0.88,
@@ -284,9 +284,9 @@ _KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
     ),
     # Top N / ranking
     (
-        [r"\btop\s+\d+\b", r"\bbottom\s+\d+\b", r"\bhighest\b",
-         r"\blowest\b", r"\branking?\b", r"\bbest\b.*\d+",
-         r"\bworst\b.*\d+", r"\blargest\b", r"\bsmallest\b"],
+        [r"\btop\s+\d+\b", r"\bbottom\s+\d+\b", r"\bhighest\s+\d+\b",
+         r"\blowest\s+\d+\b", r"\branking?\b", r"\bbest\b.*\d+",
+         r"\bworst\b.*\d+", r"\blargest\b.*\bby\b", r"\bsmallest\b.*\bby\b"],
         "top_n", {}, 0.90,
         "Matched: '{matched}' -> top_n",
     ),

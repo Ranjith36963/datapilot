@@ -26,6 +26,7 @@ logger = logging.getLogger("datapilot.analysis.query")
 _SMART_QUERY_TIMEOUT = 5
 _SMART_QUERY_MAX_LINES = 10
 _SMART_QUERY_MAX_ROWS = 500
+_SMART_QUERY_MAX_LEAKED_THREADS = 3
 
 _FORBIDDEN_NAMES = frozenset({
     "os", "sys", "subprocess", "shutil", "pathlib",
@@ -33,6 +34,54 @@ _FORBIDDEN_NAMES = frozenset({
     "globals", "locals", "getattr", "setattr", "delattr",
     "breakpoint", "exit", "quit",
 })
+
+_FORBIDDEN_ATTR_CALLS = frozenset({
+    "eval", "exec", "compile", "system", "popen",
+    "read_csv", "read_html", "read_sql", "read_excel",
+    "read_json", "read_parquet", "read_pickle",
+    "to_csv", "to_excel", "to_sql", "to_json",
+    "to_parquet", "to_pickle", "to_html", "to_clipboard", "to_latex",
+})
+
+# ---------------------------------------------------------------------------
+# Safe proxy objects for sandbox (Fix #1)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_PD_METHODS = {
+    "DataFrame", "Series", "to_numeric", "to_datetime", "cut", "qcut",
+    "concat", "merge", "get_dummies", "crosstab", "pivot_table",
+    "isna", "notna", "NA", "NaT",
+}
+
+_ALLOWED_NP_METHODS = {
+    "mean", "median", "std", "var", "sum", "min", "max", "abs",
+    "sqrt", "log", "log2", "log10", "exp", "round", "ceil", "floor",
+    "where", "select", "clip", "nan", "inf", "array", "zeros", "ones",
+    "arange", "linspace", "percentile", "quantile", "unique", "sort",
+    "histogram", "corrcoef",
+}
+
+
+class _SafePandas:
+    """Proxy that only exposes whitelisted pandas methods."""
+
+    def __getattr__(self, name: str):
+        if name in _ALLOWED_PD_METHODS:
+            return getattr(pd, name)
+        raise AttributeError(f"pd.{name} is not allowed in smart_query")
+
+
+class _SafeNumpy:
+    """Proxy that only exposes whitelisted numpy methods."""
+
+    def __getattr__(self, name: str):
+        if name in _ALLOWED_NP_METHODS:
+            return getattr(np, name)
+        raise AttributeError(f"np.{name} is not allowed in smart_query")
+
+
+# Counter for leaked threads from timeouts
+_leaked_thread_count = 0
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +104,7 @@ def _extract_params_via_llm(
     try:
         schema_desc = "\n".join(f"  {k}: {v}" for k, v in param_schema.items())
         prompt = (
-            f"Dataset columns: {', '.join(df_columns)}\n"
+            f"Dataset columns: {', '.join(str(c) for c in df_columns)}\n"
             f"User question: {question}\n\n"
             f"Extract parameters for '{skill_name}':\n{schema_desc}\n\n"
             "Respond ONLY with valid JSON matching the schema above."
@@ -110,6 +159,15 @@ def query_data(df: pd.DataFrame, question: str, llm_provider=None) -> dict:
         filtered_df = df
 
         if filter_expression:
+            # Validate: reject function calls in filter expressions
+            try:
+                filter_tree = ast.parse(filter_expression, mode="eval")
+                for node in ast.walk(filter_tree):
+                    if isinstance(node, ast.Call):
+                        return {"status": "error", "message": "Function calls are not allowed in filter expressions"}
+            except SyntaxError:
+                return {"status": "error", "message": f"Invalid filter expression syntax"}
+
             try:
                 filtered_df = df.query(filter_expression)
             except Exception as e:
@@ -352,6 +410,8 @@ def _validate_code(code: str) -> tuple:
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in _FORBIDDEN_NAMES:
                 return False, f"Forbidden function: {node.func.id}"
+            if isinstance(node.func, ast.Attribute) and node.func.attr in _FORBIDDEN_ATTR_CALLS:
+                return False, f"Forbidden method: {node.func.attr}"
         if isinstance(node, ast.Name) and node.id in _FORBIDDEN_NAMES:
             return False, f"Forbidden name: {node.id}"
         if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
@@ -363,9 +423,15 @@ def _execute_safe(code: str, df: pd.DataFrame) -> dict:
     """Execute validated code in a sandboxed namespace.
 
     Returns result dict with status, data, and code.
+    Uses daemon threads with a leak counter to prevent runaway threads.
     """
+    global _leaked_thread_count
+
+    if _leaked_thread_count >= _SMART_QUERY_MAX_LEAKED_THREADS:
+        return {"status": "error", "message": "smart_query unavailable: too many timed-out executions"}
+
     safe_df = df.copy()
-    namespace = {"pd": pd, "np": np, "df": safe_df}
+    namespace = {"pd": _SafePandas(), "np": _SafeNumpy(), "df": safe_df}
     result_container = {"status": "error", "message": "Unknown error"}
 
     def _run():
@@ -394,10 +460,11 @@ def _execute_safe(code: str, df: pd.DataFrame) -> dict:
         except Exception as e:
             result_container.update({"status": "error", "message": str(e)[:200]})
 
-    thread = threading.Thread(target=_run)
+    thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     thread.join(timeout=_SMART_QUERY_TIMEOUT)
     if thread.is_alive():
+        _leaked_thread_count += 1
         return {"status": "error", "message": f"Code execution timeout after {_SMART_QUERY_TIMEOUT}s"}
     return result_container
 
@@ -417,7 +484,10 @@ def smart_query(df: pd.DataFrame, question: str, llm_provider=None) -> dict:
 
     try:
         # Build prompt with column info and sample rows
-        col_info = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
+        cols = list(df.columns)[:50]
+        col_info = ", ".join(f"{c} ({df[c].dtype})" for c in cols)
+        if len(df.columns) > 50:
+            col_info += f"... and {len(df.columns) - 50} more columns"
         sample = df.head(3).to_string(index=False)
         prompt = (
             f"Dataset columns: {col_info}\n"

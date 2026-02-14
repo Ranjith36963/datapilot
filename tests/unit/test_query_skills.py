@@ -427,6 +427,65 @@ class TestValidateCode:
         assert is_safe is False
         assert "dunder" in reason.lower() or "__" in reason
 
+    def test_smart_query_blocks_pd_read_csv(self):
+        """pd.read_csv() is blocked by AST validator."""
+        is_safe, reason = _validate_code('result = pd.read_csv("http://evil.com/data.csv")')
+        assert is_safe is False
+        assert "read_csv" in reason
+
+    def test_smart_query_blocks_df_to_csv(self):
+        """df.to_csv() is blocked by AST validator."""
+        is_safe, reason = _validate_code('df.to_csv("/tmp/stolen.csv")')
+        assert is_safe is False
+        assert "to_csv" in reason
+
+    def test_smart_query_blocks_pd_eval(self):
+        """pd.eval() is blocked by AST validator."""
+        is_safe, reason = _validate_code('result = pd.eval("1+1")')
+        assert is_safe is False
+        assert "eval" in reason
+
+    def test_smart_query_blocks_read_html(self):
+        """pd.read_html() is blocked by AST validator."""
+        is_safe, reason = _validate_code('result = pd.read_html("http://evil.com")')
+        assert is_safe is False
+        assert "read_html" in reason
+
+
+class TestSandboxProxyExecution:
+    """Test that sandbox proxy objects block dangerous operations at runtime."""
+
+    def test_smart_query_proxy_blocks_pd_read_csv(self, sample_df):
+        """pd.read_csv() blocked even if AST check is bypassed — proxy raises AttributeError."""
+        result = _execute_safe('result = pd.read_csv("test.csv")', sample_df)
+        assert result["status"] == "error"
+        assert "read_csv" in result["message"] or "not allowed" in result["message"]
+
+    def test_smart_query_proxy_allows_safe_pd(self, sample_df):
+        """Safe pd methods like pd.to_numeric work through the proxy."""
+        result = _execute_safe('result = pd.to_numeric(df["age"])', sample_df)
+        assert result["status"] == "success"
+
+    def test_smart_query_proxy_blocks_np_eval(self, sample_df):
+        """np methods not in allowlist are blocked by the proxy."""
+        result = _execute_safe('result = np.loadtxt("test.txt")', sample_df)
+        assert result["status"] == "error"
+        assert "not allowed" in result["message"]
+
+
+class TestFilterExpressionValidation:
+    """Test that df.query() filter expressions reject function calls."""
+
+    def test_smart_query_filter_no_function_calls(self, sample_df, mock_llm_provider):
+        """df.query() rejects expressions with function calls."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "filter_expression": "__import__('os').system('rm -rf /')",
+            "columns": None,
+        })
+        result = query_data(sample_df, "hack me", llm_provider=mock_llm_provider)
+        assert result["status"] == "error"
+        assert "function call" in result["message"].lower() or "not allowed" in result["message"].lower()
+
 
 # ============================================================================
 # Group 9: Routing integration — keyword routes for new skills
