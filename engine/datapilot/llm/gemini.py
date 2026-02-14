@@ -309,54 +309,6 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini fingerprint_dataset failed: {e}")
             return None
 
-    def fingerprint_domain(
-        self,
-        columns: List[Dict[str, Any]],
-        sample_data: List[Dict[str, Any]],
-        profile_stats: Dict[str, Any],
-        layer_signals: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Detect dataset domain using Gemini.
-
-        Args:
-            columns: List of column metadata dicts
-            sample_data: Sample rows
-            profile_stats: Statistical profile
-            layer_signals: Layer 1/2 signals
-
-        Returns:
-            Dict with domain, confidence, reasoning, evidence, suggested_target, alternative_domains
-        """
-        try:
-            from .prompts.fingerprint_prompts import (
-                FINGERPRINT_SYSTEM_PROMPT,
-                format_fingerprint_prompt,
-                parse_fingerprint_response,
-            )
-
-            # Format prompt
-            prompt = format_fingerprint_prompt(
-                columns=columns,
-                sample_data=sample_data,
-                profile_stats=profile_stats,
-                layer_signals=layer_signals,
-            )
-
-            # Add system prompt
-            full_prompt = f"{FINGERPRINT_SYSTEM_PROMPT}\n\n{prompt}"
-
-            # Call Gemini with low temperature for deterministic classification
-            text = self._generate(full_prompt, temperature=0, max_tokens=1024)
-
-            # Parse and validate response
-            result = parse_fingerprint_response(text)
-
-            return result
-
-        except Exception as e:
-            logger.warning(f"Gemini fingerprint failed: {e}")
-            return None
-
     def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
         """Analyze dataset snapshot and return structured understanding."""
         try:

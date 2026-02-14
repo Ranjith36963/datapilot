@@ -83,9 +83,12 @@ export function DomainBadge({ fingerprint }: DomainBadgeProps) {
         <button
           onMouseEnter={() => setShowTooltip(true)}
           onMouseLeave={() => setShowTooltip(false)}
+          onFocus={() => setShowTooltip(true)}
+          onBlur={() => setShowTooltip(false)}
           onClick={() => setShowTooltip((v) => !v)}
           className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
           aria-label="Show dataset understanding details"
+          aria-expanded={showTooltip}
         >
           <Info className="h-3.5 w-3.5" />
           <span className="text-xs font-medium">Details</span>
@@ -202,7 +205,7 @@ export function DomainBadgeError({ error }: { error: string }) {
     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600">
       <HelpCircle className="h-4 w-4 text-slate-400 dark:text-slate-500" />
       <span className="text-sm text-slate-500 dark:text-slate-400">
-        Domain detection unavailable
+        {error || "Domain detection unavailable"}
       </span>
     </div>
   );

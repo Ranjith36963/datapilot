@@ -1,5 +1,5 @@
 """
-Tests for the autopilot module (D3/D4) -- TDD RED phase.
+D3 AI Dataset Understanding + Auto-Pilot tests.
 
 Tests cover:
   1. get_available_skills_description -- returns skill list for LLM prompts
@@ -7,8 +7,6 @@ Tests cover:
   3. run_autopilot -- step-by-step execution with error handling
   4. generate_summary -- LLM-generated final summary
   5. Full pipeline integration (mocked)
-
-All tests should FAIL initially since autopilot.py only has stubs.
 """
 
 import asyncio

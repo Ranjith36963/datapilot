@@ -160,45 +160,6 @@ class FailoverProvider(LLMProvider):
 
         return None  # All providers failed
 
-    def fingerprint_domain(
-        self,
-        columns: List[Dict[str, Any]],
-        sample_data: List[Dict[str, Any]],
-        profile_stats: Dict[str, Any],
-        layer_signals: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Detect dataset domain using task-aware provider order.
-
-        Args:
-            columns: List of column metadata dicts
-            sample_data: Sample row dicts (first 5-10 rows)
-            profile_stats: Statistical profile summary
-            layer_signals: Optional layer 1/2 detection results
-
-        Returns:
-            Dict with domain, confidence, reasoning, evidence, suggested_target, alternative_domains
-            or None if all providers fail
-        """
-        for name, provider in self._get_provider_order("fingerprint"):
-            # Check if provider has fingerprint_domain method
-            if not hasattr(provider, "fingerprint_domain"):
-                logger.debug(f"Provider {name} does not support fingerprint_domain")
-                continue
-
-            try:
-                start = time.time()
-                result = provider.fingerprint_domain(
-                    columns, sample_data, profile_stats, layer_signals
-                )
-                if result and "domain" in result and "confidence" in result:
-                    elapsed = round((time.time() - start) * 1000)
-                    logger.info(f"Fingerprint handled by {name} ({elapsed}ms)")
-                    return result
-            except Exception as e:
-                logger.warning(f"Fingerprint failed with {name}: {e}")
-
-        return None  # All providers failed
-
     def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
         """Understand dataset using task-aware provider order."""
         for name, provider in self._get_provider_order("understand"):

@@ -17,6 +17,8 @@ export function useAutopilot(
 ) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -40,7 +42,7 @@ export function useAutopilot(
         const data = await getAutopilotStatus(sessionId);
         if (cancelledRef.current) return;
 
-        onUpdate(data);
+        onUpdateRef.current(data);
 
         // Stop polling on terminal state
         if (TERMINAL_STATES.has(data.status)) {

@@ -195,10 +195,14 @@ async def fingerprint_dataset_endpoint(
                 explanation=explanation_dict,
             )
 
-        # Kick off autopilot in background
-        background_tasks.add_task(
-            _run_autopilot_background, session_id, analyst
-        )
+        # Kick off autopilot in background (only if not already running/complete)
+        if session_manager._store:
+            ap_session = await session_manager._store.get_session(session_id)
+            existing_ap = ap_session.get("autopilot_status") if ap_session else None
+            if existing_ap not in ("planning", "running", "complete"):
+                background_tasks.add_task(
+                    _run_autopilot_background, session_id, analyst
+                )
 
         return FingerprintResponse(
             domain=understanding.domain,
@@ -222,7 +226,7 @@ async def fingerprint_dataset_endpoint(
         logger.error(f"Fingerprinting failed for session {session_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Fingerprinting failed: {str(e)}",
+            detail="Fingerprinting failed",
         )
 
 

@@ -6,6 +6,7 @@ Tier 2: SQLite via SessionStore for durability across restarts
 """
 
 import asyncio
+import json
 import logging
 import sys
 from pathlib import Path
@@ -18,14 +19,16 @@ def _compact_result(data) -> dict | None:
     """Strip base64/large fields from a result dict for compact storage."""
     if not data or not isinstance(data, dict):
         return None
-    import json
-    compact = {
-        k: v for k, v in data.items()
-        if not (isinstance(v, str) and len(v) > 5000)
-    }
+    compact = {}
+    for k, v in data.items():
+        if isinstance(v, str) and len(v) > 50000:
+            logger.debug(f"_compact_result: dropping key '{k}' ({len(v)} chars)")
+            continue
+        compact[k] = v
     try:
         serialized = json.dumps(compact, default=str)
-        if len(serialized) > 50000:
+        if len(serialized) > 100000:
+            logger.warning(f"_compact_result: result too large ({len(serialized)} bytes), skipping")
             return None
         return compact
     except (TypeError, ValueError):

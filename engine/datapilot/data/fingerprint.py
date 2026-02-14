@@ -17,7 +17,17 @@ from ..utils.helpers import setup_logging
 logger = setup_logging("datapilot.fingerprint")
 
 # PII column name patterns for redaction
-_PII_PATTERNS = {"email", "phone", "ssn", "social_security", "credit_card", "password", "secret"}
+_PII_PATTERNS = {
+    "email", "e_mail",
+    "phone", "phone_number", "telephone", "mobile",
+    "ssn", "social_security", "national_id",
+    "first_name", "last_name", "full_name", "surname",
+    "address", "street", "zip", "postal",
+    "date_of_birth", "dob", "birth_date",
+    "passport", "drivers_license", "license_number",
+    "credit_card", "card_number", "account_number",
+    "password", "secret",
+}
 
 # Keep for backward compat — imported by gemini.py / groq.py fingerprint_dataset()
 FINGERPRINT_SYSTEM_PROMPT = (

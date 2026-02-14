@@ -263,7 +263,6 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 export interface DomainFingerprintResponse {
-  status: string;
   domain: string;
   domain_short: string;
   confidence: number;

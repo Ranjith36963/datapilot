@@ -1,13 +1,10 @@
 """
-Tests for dataset fingerprinting module (D3) — LLM-first approach.
+D3 dataset fingerprinting tests — LLM-first approach.
 
 Tests cover:
   1. build_data_snapshot — compact text snapshot of a DataFrame for LLM context
   2. understand_dataset — LLM-driven dataset understanding (mocked providers)
   3. fingerprint_dataset — backward-compatible wrapper around understand_dataset
-
-This is TDD RED phase — all tests should FAIL because the implementations
-are stubs.  Agent 3 will make them pass.
 """
 
 import pandas as pd

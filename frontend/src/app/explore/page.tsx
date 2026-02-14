@@ -400,7 +400,7 @@ export default function ExplorePage() {
                         <div
                           className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
                           style={{
-                            width: `${Math.round((apCompleted / apTotal) * 100)}%`,
+                            width: `${apTotal > 0 ? Math.round((apCompleted / apTotal) * 100) : 0}%`,
                           }}
                         />
                       </div>

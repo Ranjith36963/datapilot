@@ -12,7 +12,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional
+from typing import Any, List, Optional
 
 from ..utils.helpers import setup_logging
 from ..llm.prompts.base import build_skill_catalog, get_skill_names
@@ -177,11 +177,12 @@ async def run_autopilot(
     """Execute the analysis plan step by step.
 
     Serial execution with DELAY_BETWEEN_STEPS delay between steps.
-    Each step calls analyst.ask(question).  Errors are caught per-step
-    so one failure doesn't abort the whole run.
+    Each step calls analyst.ask(question) via asyncio.to_thread to
+    avoid blocking the event loop. Errors are caught per-step so one
+    failure doesn't abort the whole run.
 
     Args:
-        analyst: Analyst instance with ask() method.
+        analyst: Analyst instance with ask() method (synchronous).
         plan: The AnalysisPlan to execute.
         understanding: DatasetUnderstanding for context.
         on_step_complete: Optional async callback(step_number, total_steps, result_dict).
@@ -199,7 +200,7 @@ async def run_autopilot(
         step_result: dict
 
         try:
-            result = analyst.ask(step.question)
+            result = await asyncio.to_thread(analyst.ask, step.question)
             step_result = {
                 "step": step.skill,
                 "status": "complete",
