@@ -13,6 +13,10 @@ __version__ = "0.1.0"
 from .data.profiler import profile_data, detect_target_candidates, profile_and_upload
 from .data.schema import infer_schema, detect_datetime_columns, detect_categorical_threshold, infer_and_upload
 from .data.validator import validate_data, check_nulls, check_duplicates, check_outliers, validate_and_upload
+from .data.fingerprint import fingerprint_dataset
+
+# Data Querying
+from .analysis.query import query_data, pivot_table, value_counts, top_n, cross_tab, smart_query
 
 # Data Preparation
 from .data.cleaner import curate_dataframe, impute_missing, standardize_column_names, curate_and_upload
@@ -84,6 +88,9 @@ __all__ = [
     "profile_data", "detect_target_candidates", "profile_and_upload",
     "infer_schema", "detect_datetime_columns", "detect_categorical_threshold", "infer_and_upload",
     "validate_data", "check_nulls", "check_duplicates", "check_outliers", "validate_and_upload",
+    "fingerprint_dataset",
+    # Data Querying
+    "query_data", "pivot_table", "value_counts", "top_n", "cross_tab", "smart_query",
     # Data Preparation
     "curate_dataframe", "impute_missing", "standardize_column_names", "curate_and_upload",
     "detect_outliers", "flag_anomalies", "get_outlier_summary", "detect_and_upload",
