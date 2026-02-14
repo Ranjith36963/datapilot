@@ -374,3 +374,172 @@ class GroqProvider(LLMProvider):
                 })
 
             return {"suggestions": fallback}
+
+    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Classify dataset domain using Groq (simple interface).
+
+        Args:
+            prompt: Formatted prompt from fingerprint.py
+
+        Returns:
+            Dict with domain, confidence, reasoning, suggested_target
+        """
+        client = self._get_client()
+
+        try:
+            # Import system prompt from fingerprint module
+            from ..data.fingerprint import FINGERPRINT_SYSTEM_PROMPT
+
+            # Call Groq
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": FINGERPRINT_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=512,
+                temperature=0,
+            )
+
+            text = response.choices[0].message.content.strip()
+
+            # Parse JSON response
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                text = text.rsplit("```", 1)[0]
+            result = json.loads(text)
+
+            # Validate required fields
+            if "domain" not in result or "confidence" not in result:
+                logger.warning("Groq fingerprint missing required fields")
+                return None
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Groq fingerprint_dataset failed: {e}")
+            return None
+
+    def fingerprint_domain(
+        self,
+        columns: List[Dict[str, Any]],
+        sample_data: List[Dict[str, Any]],
+        profile_stats: Dict[str, Any],
+        layer_signals: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Detect dataset domain using Groq.
+
+        Args:
+            columns: List of column metadata dicts
+            sample_data: Sample rows
+            profile_stats: Statistical profile
+            layer_signals: Layer 1/2 signals
+
+        Returns:
+            Dict with domain, confidence, reasoning, evidence, suggested_target, alternative_domains
+        """
+        client = self._get_client()
+
+        try:
+            from .prompts.fingerprint_prompts import (
+                FINGERPRINT_SYSTEM_PROMPT,
+                format_fingerprint_prompt,
+                parse_fingerprint_response,
+            )
+
+            # Format prompt
+            prompt = format_fingerprint_prompt(
+                columns=columns,
+                sample_data=sample_data,
+                profile_stats=profile_stats,
+                layer_signals=layer_signals,
+            )
+
+            # Call Groq
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": FINGERPRINT_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1024,
+                temperature=0,
+            )
+
+            text = response.choices[0].message.content.strip()
+
+            # Parse and validate response
+            result = parse_fingerprint_response(text)
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Groq fingerprint failed: {e}")
+            return None
+
+    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+        """Analyze dataset snapshot and return structured understanding."""
+        client = self._get_client()
+        try:
+            system = (
+                "You are a data analysis expert. Given a dataset snapshot, provide structured understanding.\n"
+                "Respond ONLY with valid JSON:\n"
+                '{"domain": "<business domain>", "domain_short": "<1-2 word label>", '
+                '"target_column": "<column_name or null>", "target_type": "<classification|regression|null>", '
+                '"key_observations": ["<observation>", ...], '
+                '"suggested_questions": ["<question>", ...], '
+                '"data_quality_notes": ["<note>", ...]}'
+            )
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": snapshot},
+                ],
+                max_tokens=1024,
+                temperature=0,
+            )
+            text = response.choices[0].message.content.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                text = text.rsplit("```", 1)[0]
+            return json.loads(text)
+        except Exception as e:
+            logger.warning(f"Groq understand_dataset failed: {e}")
+            return None
+
+    def generate_plan(self, prompt: str) -> Optional[str]:
+        """Generate an analysis plan. Returns raw LLM text (JSON string)."""
+        client = self._get_client()
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a data analysis planning expert. Generate analysis plans in JSON format."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1024,
+                temperature=0,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.warning(f"Groq generate_plan failed: {e}")
+            return None
+
+    def generate_summary(self, prompt: str) -> Optional[str]:
+        """Generate a summary of analysis results."""
+        client = self._get_client()
+        try:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a data analyst. Summarize analysis findings concisely."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=1024,
+                temperature=0.3,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.warning(f"Groq generate_summary failed: {e}")
+            return None

@@ -276,6 +276,122 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini chart suggestion failed: {e}")
             return self._fallback_suggestions(data_context)
 
+    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Classify dataset domain using Gemini (simple interface).
+
+        Args:
+            prompt: Formatted prompt from fingerprint.py
+
+        Returns:
+            Dict with domain, confidence, reasoning, suggested_target
+        """
+        try:
+            # Import system prompt from fingerprint module
+            from ..data.fingerprint import FINGERPRINT_SYSTEM_PROMPT
+
+            # Combine system prompt with user prompt
+            full_prompt = f"{FINGERPRINT_SYSTEM_PROMPT}\n\n{prompt}"
+
+            # Call Gemini with low temperature for deterministic classification
+            text = self._generate(full_prompt, temperature=0, max_tokens=512)
+
+            # Parse JSON response
+            result = self._parse_json(text)
+
+            # Validate required fields
+            if "domain" not in result or "confidence" not in result:
+                logger.warning("Gemini fingerprint missing required fields")
+                return None
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Gemini fingerprint_dataset failed: {e}")
+            return None
+
+    def fingerprint_domain(
+        self,
+        columns: List[Dict[str, Any]],
+        sample_data: List[Dict[str, Any]],
+        profile_stats: Dict[str, Any],
+        layer_signals: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Detect dataset domain using Gemini.
+
+        Args:
+            columns: List of column metadata dicts
+            sample_data: Sample rows
+            profile_stats: Statistical profile
+            layer_signals: Layer 1/2 signals
+
+        Returns:
+            Dict with domain, confidence, reasoning, evidence, suggested_target, alternative_domains
+        """
+        try:
+            from .prompts.fingerprint_prompts import (
+                FINGERPRINT_SYSTEM_PROMPT,
+                format_fingerprint_prompt,
+                parse_fingerprint_response,
+            )
+
+            # Format prompt
+            prompt = format_fingerprint_prompt(
+                columns=columns,
+                sample_data=sample_data,
+                profile_stats=profile_stats,
+                layer_signals=layer_signals,
+            )
+
+            # Add system prompt
+            full_prompt = f"{FINGERPRINT_SYSTEM_PROMPT}\n\n{prompt}"
+
+            # Call Gemini with low temperature for deterministic classification
+            text = self._generate(full_prompt, temperature=0, max_tokens=1024)
+
+            # Parse and validate response
+            result = parse_fingerprint_response(text)
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Gemini fingerprint failed: {e}")
+            return None
+
+    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+        """Analyze dataset snapshot and return structured understanding."""
+        try:
+            prompt = (
+                "You are a data analysis expert. Given a dataset snapshot, provide structured understanding.\n"
+                "Respond ONLY with valid JSON:\n"
+                '{"domain": "<business domain>", "domain_short": "<1-2 word label>", '
+                '"target_column": "<column_name or null>", "target_type": "<classification|regression|null>", '
+                '"key_observations": ["<observation>", ...], '
+                '"suggested_questions": ["<question>", ...], '
+                '"data_quality_notes": ["<note>", ...]}\n\n'
+                f"{snapshot}"
+            )
+            text = self._generate(prompt, temperature=0, max_tokens=1024)
+            return self._parse_json(text)
+        except Exception as e:
+            logger.warning(f"Gemini understand_dataset failed: {e}")
+            return None
+
+    def generate_plan(self, prompt: str) -> Optional[str]:
+        """Generate an analysis plan. Returns raw LLM text (JSON string)."""
+        try:
+            return self._generate(prompt, temperature=0, max_tokens=1024)
+        except Exception as e:
+            logger.warning(f"Gemini generate_plan failed: {e}")
+            return None
+
+    def generate_summary(self, prompt: str) -> Optional[str]:
+        """Generate a summary of analysis results."""
+        try:
+            return self._generate(prompt, temperature=0.3, max_tokens=1024)
+        except Exception as e:
+            logger.warning(f"Gemini generate_summary failed: {e}")
+            return None
+
     @staticmethod
     def _fallback_suggestions(data_context: Dict[str, Any]) -> Dict[str, Any]:
         """Build deterministic fallback chart suggestions from column metadata."""

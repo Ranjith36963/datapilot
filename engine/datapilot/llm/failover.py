@@ -21,6 +21,9 @@ DEFAULT_TASK_ROUTING = {
     "chart_suggest": ["gemini", "groq"],  # Gemini has better JSON output
     "chart_insight": ["groq", "gemini"],  # Groq is faster for short text
     "fingerprint": ["gemini", "groq"],  # Gemini has better JSON + accuracy
+    "understand": ["gemini", "groq"],   # D3: dataset understanding
+    "plan": ["gemini", "groq"],         # D3: analysis plan generation
+    "summary": ["gemini", "groq"],      # D3: results summary
 }
 
 
@@ -128,3 +131,118 @@ class FailoverProvider(LLMProvider):
             except Exception as e:
                 logger.warning(f"Chart insight failed with {name}: {e}")
         return ""  # All failed — return empty string
+
+    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Classify dataset domain using task-aware provider order (simple interface).
+
+        Args:
+            prompt: Formatted prompt from fingerprint.py
+
+        Returns:
+            Dict with domain, confidence, reasoning, suggested_target
+            or None if all providers fail
+        """
+        for name, provider in self._get_provider_order("fingerprint"):
+            # Check if provider has fingerprint_dataset method
+            if not hasattr(provider, "fingerprint_dataset"):
+                logger.debug(f"Provider {name} does not support fingerprint_dataset")
+                continue
+
+            try:
+                start = time.time()
+                result = provider.fingerprint_dataset(prompt)
+                if result and "domain" in result and "confidence" in result:
+                    elapsed = round((time.time() - start) * 1000)
+                    logger.info(f"Fingerprint (simple) handled by {name} ({elapsed}ms)")
+                    return result
+            except Exception as e:
+                logger.warning(f"Fingerprint (simple) failed with {name}: {e}")
+
+        return None  # All providers failed
+
+    def fingerprint_domain(
+        self,
+        columns: List[Dict[str, Any]],
+        sample_data: List[Dict[str, Any]],
+        profile_stats: Dict[str, Any],
+        layer_signals: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Detect dataset domain using task-aware provider order.
+
+        Args:
+            columns: List of column metadata dicts
+            sample_data: Sample row dicts (first 5-10 rows)
+            profile_stats: Statistical profile summary
+            layer_signals: Optional layer 1/2 detection results
+
+        Returns:
+            Dict with domain, confidence, reasoning, evidence, suggested_target, alternative_domains
+            or None if all providers fail
+        """
+        for name, provider in self._get_provider_order("fingerprint"):
+            # Check if provider has fingerprint_domain method
+            if not hasattr(provider, "fingerprint_domain"):
+                logger.debug(f"Provider {name} does not support fingerprint_domain")
+                continue
+
+            try:
+                start = time.time()
+                result = provider.fingerprint_domain(
+                    columns, sample_data, profile_stats, layer_signals
+                )
+                if result and "domain" in result and "confidence" in result:
+                    elapsed = round((time.time() - start) * 1000)
+                    logger.info(f"Fingerprint handled by {name} ({elapsed}ms)")
+                    return result
+            except Exception as e:
+                logger.warning(f"Fingerprint failed with {name}: {e}")
+
+        return None  # All providers failed
+
+    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+        """Understand dataset using task-aware provider order."""
+        for name, provider in self._get_provider_order("understand"):
+            if not hasattr(provider, "understand_dataset"):
+                continue
+            try:
+                start = time.time()
+                result = provider.understand_dataset(snapshot)
+                if result and isinstance(result, dict) and "domain" in result:
+                    elapsed = round((time.time() - start) * 1000)
+                    logger.info(f"Understand handled by {name} ({elapsed}ms)")
+                    return result
+            except Exception as e:
+                logger.warning(f"Understand failed with {name}: {e}")
+        return None
+
+    def generate_plan(self, prompt: str) -> Optional[str]:
+        """Generate analysis plan using task-aware provider order."""
+        for name, provider in self._get_provider_order("plan"):
+            if not hasattr(provider, "generate_plan"):
+                continue
+            try:
+                start = time.time()
+                result = provider.generate_plan(prompt)
+                if result and isinstance(result, str) and len(result) > 10:
+                    elapsed = round((time.time() - start) * 1000)
+                    logger.info(f"Plan handled by {name} ({elapsed}ms)")
+                    return result
+            except Exception as e:
+                logger.warning(f"Plan failed with {name}: {e}")
+        return None
+
+    def generate_summary(self, prompt: str) -> Optional[str]:
+        """Generate summary using task-aware provider order."""
+        for name, provider in self._get_provider_order("summary"):
+            if not hasattr(provider, "generate_summary"):
+                continue
+            try:
+                start = time.time()
+                result = provider.generate_summary(prompt)
+                if result and isinstance(result, str) and len(result) > 10:
+                    elapsed = round((time.time() - start) * 1000)
+                    logger.info(f"Summary handled by {name} ({elapsed}ms)")
+                    return result
+            except Exception as e:
+                logger.warning(f"Summary failed with {name}: {e}")
+        return None

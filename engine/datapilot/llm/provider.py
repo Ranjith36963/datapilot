@@ -108,3 +108,57 @@ class LLMProvider(ABC):
         """
         routing = self.route_question(question, data_context, "")
         return f"I would use the '{routing.skill_name}' skill to answer this."
+
+    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """
+        Classify a dataset's business domain based on a formatted prompt.
+
+        Args:
+            prompt: Formatted prompt with dataset overview, column summary, and samples.
+                   Should be created using FINGERPRINT_PROMPT_TEMPLATE from
+                   datapilot.data.fingerprint module.
+
+        Returns:
+            Dict with keys: domain, confidence, reasoning, suggested_target
+            or None if classification fails.
+
+        Expected JSON response format:
+            {
+              "domain": "<finance|healthcare|retail|ecommerce|hr|marketing|general>",
+              "confidence": <0.0-1.0>,
+              "reasoning": "<one_sentence>",
+              "suggested_target": "<column_name_or_null>"
+            }
+
+        Default implementation returns None. Override in subclasses.
+        """
+        return None
+
+    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+        """
+        Analyze a dataset snapshot and return structured understanding.
+
+        Returns:
+            Dict with domain, domain_short, target_column, target_type,
+            key_observations, suggested_questions, data_quality_notes.
+            Or None if analysis fails.
+        """
+        return None
+
+    def generate_plan(self, prompt: str) -> Optional[str]:
+        """
+        Generate an analysis plan from a prompt.
+
+        Returns:
+            JSON string with title and steps, or None.
+        """
+        return None
+
+    def generate_summary(self, prompt: str) -> Optional[str]:
+        """
+        Generate a summary of analysis results.
+
+        Returns:
+            Summary text string, or None.
+        """
+        return None
