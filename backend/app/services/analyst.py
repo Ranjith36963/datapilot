@@ -13,6 +13,25 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("datapilot.backend.analyst_service")
 
+
+def _compact_result(data) -> dict | None:
+    """Strip base64/large fields from a result dict for compact storage."""
+    if not data or not isinstance(data, dict):
+        return None
+    import json
+    compact = {
+        k: v for k, v in data.items()
+        if not (isinstance(v, str) and len(v) > 5000)
+    }
+    try:
+        serialized = json.dumps(compact, default=str)
+        if len(serialized) > 50000:
+            return None
+        return compact
+    except (TypeError, ValueError):
+        return None
+
+
 # Ensure engine is importable
 _engine_path = str(Path(__file__).resolve().parents[3] / "engine")
 if _engine_path not in sys.path:
@@ -166,6 +185,7 @@ class SessionManager:
                     "key_points": entry.key_points[:5] if entry.key_points else [],
                     "confidence": entry.routing.confidence if entry.routing else 0.5,
                     "reasoning": (entry.routing.reasoning[:200] if entry.routing and entry.routing.reasoning else ""),
+                    "result": _compact_result(entry.data),
                 })
 
             compact = restored + new_entries

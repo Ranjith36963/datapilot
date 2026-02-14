@@ -19,6 +19,8 @@ import {
 import { askQuestion, getHistory, type AskResponse, type ConversationEntry } from "@/lib/api";
 import { useValidatedSession, type ChatMessage } from "@/lib/store";
 import { ResultCard } from "@/components/result-card";
+import { DomainBadge, DomainBadgeSkeleton, DomainBadgeError } from "@/components/DomainBadge";
+import { useFingerprint } from "@/hooks/useFingerprint";
 
 const SUGGESTED_QUESTIONS = [
   "Give me an overview of the data",
@@ -129,10 +131,34 @@ function TrustHeader({ data }: { data: AskResponse }) {
 }
 
 export default function ExplorePage() {
-  const { sessionId, filename, columns, exploreMessages, addExploreMessage, setExploreMessages, isReady } = useValidatedSession();
+  const {
+    sessionId,
+    filename,
+    columns,
+    fingerprint: cachedFingerprint,
+    setFingerprint,
+    exploreMessages,
+    addExploreMessage,
+    setExploreMessages,
+    isReady,
+  } = useValidatedSession();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch domain fingerprint data (uses cache if available)
+  const {
+    fingerprint,
+    isLoading: fingerprintLoading,
+    error: fingerprintError,
+  } = useFingerprint(sessionId, cachedFingerprint);
+
+  // Cache fingerprint in Zustand store after fetching
+  useEffect(() => {
+    if (fingerprint && !cachedFingerprint) {
+      setFingerprint(fingerprint);
+    }
+  }, [fingerprint, cachedFingerprint, setFingerprint]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -167,6 +193,7 @@ export default function ExplorePage() {
               confidence: entry.confidence ?? 0.5,
               reasoning: entry.reasoning || "Restored from previous session",
               route_method: "restored",
+              result: entry.result,
               narrative: entry.narrative,
               key_points: entry.key_points ?? [],
               suggestions: [],
@@ -254,9 +281,16 @@ export default function ExplorePage() {
         <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
           Dataset
         </h3>
-        <p className="text-sm font-medium text-slate-900 dark:text-white mb-4">
+        <p className="text-sm font-medium text-slate-900 dark:text-white mb-2">
           {filename}
         </p>
+
+        {/* Domain Badge */}
+        <div className="mb-4">
+          {fingerprintLoading && <DomainBadgeSkeleton />}
+          {fingerprintError && <DomainBadgeError error={fingerprintError} />}
+          {fingerprint && <DomainBadge fingerprint={fingerprint} />}
+        </div>
 
         <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
           Columns ({columns.length})

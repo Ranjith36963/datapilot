@@ -181,6 +181,7 @@ export interface HistoryEntry {
   key_points?: string[];
   confidence?: number;
   reasoning?: string;
+  result?: Record<string, unknown>;
 }
 
 export async function getHistory(
@@ -259,6 +260,29 @@ export async function listSessions(): Promise<{
 
 export async function deleteSession(sessionId: string): Promise<void> {
   await apiFetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export interface DomainFingerprintResponse {
+  status: string;
+  domain: string;
+  domain_short: string;
+  confidence: number;
+  target_column?: string | null;
+  target_type?: string | null;
+  key_observations: string[];
+  suggested_questions: string[];
+  data_quality_notes: string[];
+  provider_used?: string | null;
+}
+
+export async function getFingerprint(
+  sessionId: string
+): Promise<DomainFingerprintResponse> {
+  return apiFetch<DomainFingerprintResponse>(
+    `/api/fingerprint/${sessionId}`,
+    { method: "POST" },
+    sessionId
+  );
 }
 
 // ---------------------------------------------------------------------------

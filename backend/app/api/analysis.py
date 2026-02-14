@@ -96,6 +96,7 @@ async def get_history(
                 confidence=entry.routing.confidence if entry.routing else 0.5,
                 reasoning=(entry.routing.reasoning[:200]
                            if entry.routing and entry.routing.reasoning else ""),
+                result=entry.data,
             ))
         return HistoryResponse(history=entries)
 
