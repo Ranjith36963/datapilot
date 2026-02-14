@@ -252,6 +252,181 @@ def _extract_describe_columns(
 
 
 # ---------------------------------------------------------------------------
+# Semantic intent routing — no LLM needed, uses question intent + data context
+# ---------------------------------------------------------------------------
+
+# Intent categories: (intent_name, trigger_words, candidate_skills)
+# Each intent maps to a function that picks the best skill using data_context.
+_INTENT_TRIGGERS = {
+    "factor_analysis": [
+        "factor", "contribute", "affect", "impact", "influence", "cause",
+        "driv", "determine", "why", "lead to", "responsible", "reason",
+        "depend", "role", "important", "matter",
+    ],
+    "comparison": [
+        "compare", "difference", "differ", "versus", "vs", "between groups",
+        "significant", "more than", "less than",
+    ],
+    "relationship": [
+        "relationship", "correlat", "associat", "related", "connect",
+        "link between", "how does.*relate",
+    ],
+    "prediction": [
+        "predict", "forecast", "estimate", "what will", "going to",
+        "likely", "probability", "chance",
+    ],
+    "outlier_detection": [
+        "outlier", "anomal", "unusual", "abnormal", "extreme", "unexpected",
+    ],
+    "exploration": [
+        "tell me", "what can you", "insight", "pattern", "interesting",
+        "find", "discover", "explore", "analyze", "look at", "investigate",
+        "understand", "explain",
+    ],
+    "segmentation": [
+        "segment", "cluster", "group similar", "categorize", "classify into",
+        "types of", "kinds of",
+    ],
+    "trend_analysis": [
+        "trend", "change over", "increase", "decrease", "grow", "decline",
+        "over time", "time series",
+    ],
+}
+
+
+def _detect_intent(question: str) -> List[str]:
+    """Detect question intents from trigger words. Returns list of matched intents."""
+    q = question.lower()
+    matched = []
+    for intent, triggers in _INTENT_TRIGGERS.items():
+        for trigger in triggers:
+            if trigger in q:
+                matched.append(intent)
+                break
+    return matched
+
+
+def _try_semantic_route(
+    question: str,
+    data_context: Dict[str, Any],
+) -> Optional[RoutingResult]:
+    """Smart deterministic routing using question intent + data context.
+
+    No LLM needed. Picks the best skill by analyzing the question type
+    and matching it against available data (column types, target column).
+    """
+    intents = _detect_intent(question)
+    if not intents:
+        return None
+
+    columns = data_context.get("columns", [])
+    col_names_lower = {c["name"].lower(): c["name"] for c in columns}
+
+    # Find binary/categorical columns (potential targets)
+    binary_cols = [c["name"] for c in columns if c.get("n_unique") == 2 and c.get("semantic_type") in ("categorical", "boolean")]
+    categorical_cols = [c["name"] for c in columns if c.get("semantic_type") == "categorical" and c.get("n_unique", 999) <= 10]
+    numeric_cols = [c["name"] for c in columns if c.get("semantic_type") == "numeric"]
+    datetime_cols = [c["name"] for c in columns if c.get("semantic_type") == "datetime"]
+
+    # Check if question mentions a specific column
+    mentioned = _find_mentioned_columns(question.lower(), col_names_lower)
+
+    primary_intent = intents[0]
+    skill = None
+    params: Dict[str, Any] = {}
+    reasoning = ""
+
+    if primary_intent == "factor_analysis":
+        # "What factors affect X?" → classify (feature importance) if binary target, else correlations
+        target = _extract_target(question, data_context)
+        if target and target in [c["name"] for c in columns if c.get("n_unique", 999) <= 10]:
+            skill = "classify"
+            params["target"] = target
+            reasoning = f"Factor analysis with target='{target}' → classification + feature importance"
+        elif binary_cols:
+            skill = "classify"
+            params["target"] = binary_cols[0]
+            reasoning = f"Factor analysis → classify (auto-detected binary target='{binary_cols[0]}')"
+        else:
+            skill = "analyze_correlations"
+            reasoning = "Factor analysis → correlation analysis (no clear target column)"
+
+    elif primary_intent == "comparison":
+        skill = "run_hypothesis_test"
+        reasoning = "Comparison question → hypothesis testing"
+
+    elif primary_intent == "relationship":
+        skill = "analyze_correlations"
+        if mentioned and len(mentioned) >= 2:
+            reasoning = f"Relationship between '{mentioned[0]}' and '{mentioned[1]}' → correlations"
+        else:
+            reasoning = "Relationship analysis → correlations"
+
+    elif primary_intent == "prediction":
+        target = _extract_target(question, data_context)
+        if datetime_cols:
+            skill = "forecast"
+            reasoning = "Prediction with datetime data → time series forecast"
+        elif target and target in [c["name"] for c in columns if c.get("n_unique", 999) <= 10]:
+            skill = "classify"
+            params["target"] = target
+            reasoning = f"Prediction of categorical target='{target}' → classification"
+        elif target:
+            skill = "predict_numeric"
+            params["target"] = target
+            reasoning = f"Prediction of '{target}' → numeric regression"
+        elif binary_cols:
+            skill = "classify"
+            params["target"] = binary_cols[0]
+            reasoning = f"Prediction → classify (auto-detected target='{binary_cols[0]}')"
+        else:
+            skill = "predict_numeric"
+            reasoning = "Prediction → numeric regression"
+
+    elif primary_intent == "outlier_detection":
+        skill = "detect_outliers"
+        reasoning = "Outlier/anomaly detection question"
+
+    elif primary_intent == "segmentation":
+        skill = "find_clusters"
+        reasoning = "Segmentation/grouping question → clustering"
+
+    elif primary_intent == "trend_analysis":
+        if datetime_cols:
+            skill = "forecast"
+            reasoning = "Trend analysis with datetime data → time series"
+        else:
+            skill = "describe_data"
+            if mentioned:
+                params["columns"] = mentioned[:3]
+            reasoning = "Trend analysis (no datetime) → descriptive statistics"
+
+    elif primary_intent == "exploration":
+        # General exploration: pick based on data characteristics
+        if binary_cols:
+            skill = "classify"
+            params["target"] = binary_cols[0]
+            reasoning = f"Exploration → classify (auto-detected target='{binary_cols[0]}')"
+        elif len(numeric_cols) >= 2:
+            skill = "analyze_correlations"
+            reasoning = "Exploration → correlation analysis (multiple numeric columns)"
+        else:
+            return None  # Let profile_data handle truly generic exploration
+
+    if skill is None:
+        return None
+
+    result = RoutingResult(
+        skill_name=skill,
+        parameters=params,
+        confidence=0.70,
+        reasoning=f"Semantic: {reasoning}",
+        route_method="semantic",
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Keyword routing table
 # ---------------------------------------------------------------------------
 # Each entry: (patterns, skill_name, default_params, confidence, reasoning_template)
@@ -785,23 +960,25 @@ class Router:
             if result is not None:
                 result = _enrich_parameters(result, question, data_context)
                 return result
-            # LLM tried but couldn't determine a skill
-            logger.warning("LLM routing returned no result, falling back to profile_data")
-            return RoutingResult(
-                skill_name="profile_data",
-                parameters={},
-                confidence=0.3,
-                reasoning="LLM could not determine the best skill for this question",
-                route_method="fallback",
-            )
 
-        # 3. Last resort: no LLM provider configured
-        logger.warning("No LLM provider available, falling back to profile_data")
+        # 3. Semantic intent routing — no LLM needed, free + instant
+        semantic_result = _try_semantic_route(question, data_context)
+        if semantic_result is not None:
+            semantic_result = _enrich_parameters(semantic_result, question, data_context)
+            logger.info(
+                f"Semantic routed to '{semantic_result.skill_name}' "
+                f"(confidence={semantic_result.confidence:.2f}, "
+                f"params={semantic_result.parameters})"
+            )
+            return semantic_result
+
+        # 4. Last resort: profile_data
+        logger.warning("All routing failed, falling back to profile_data")
         return RoutingResult(
             skill_name="profile_data",
             parameters={},
             confidence=0.3,
-            reasoning="No LLM provider configured — defaulting to data profile",
+            reasoning="Could not determine the best skill — showing data profile",
             route_method="fallback",
         )
 
