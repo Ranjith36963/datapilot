@@ -57,6 +57,24 @@ models/
 data_products/
 metadata/
 
+# Claude Code internals — dev tooling, not product
+.claude/
+
+# Internal planning docs
+docs/phase2.md
+docs/phase2fixed.md
+docs/tdd-session-persistence.md
+docs/feature-plan.md
+docs/agentteam.md
+
+# Root Claude instructions
+CLAUDE.md
+backend/CLAUDE.md
+engine/CLAUDE.md
+
+# Stray files
+--help
+
 # Logs
 *.log
 
