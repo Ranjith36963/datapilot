@@ -59,24 +59,69 @@ Full dataset profile (types, stats, distributions).
 
 ### POST /api/fingerprint/{session_id}
 
-Detect the domain of the dataset. Currently uses 3-layer ensemble detection (column keywords, value profiling, LLM confirmation). Returns cached result if available.
+Understand the dataset using LLM-driven domain classification. No hardcoded domains — the LLM freely classifies any dataset into a domain, identifies the target column, and generates observations and suggested questions. Returns cached result if available. Kicks off autopilot in the background.
 
 **Response:**
 ```json
 {
-  "domain": "telecom_saas",
-  "confidence": 0.87,
-  "explainability": {
-    "reasons": ["Column 'churn' strongly indicates Telecom/SaaS data"],
-    "column_matches": ["churn", "monthly_charges", "tenure"],
-    "layer": "keyword",
-    "llm_reasoning": null
-  },
-  "suggested_target": "Churn"
+  "domain": "telecom customer churn",
+  "domain_short": "Telecom",
+  "confidence": 0.9,
+  "target_column": "Churn",
+  "target_type": "classification",
+  "key_observations": [
+    "The churn rate is approximately 14.5%",
+    "High correlation between tenure and churn"
+  ],
+  "suggested_questions": [
+    "What factors drive customer churn?",
+    "How does tenure affect churn rate?",
+    "Are there anomalies in monthly charges?"
+  ],
+  "data_quality_notes": [
+    "No missing values detected",
+    "High correlation between TotalCharges and tenure"
+  ],
+  "provider_used": "gemini"
 }
 ```
 
-> **D3 Note:** This endpoint will be updated to return the new LLM-driven understanding format (free-text domain, target_column, key_observations, suggested_questions).
+### GET /api/autopilot/{session_id}
+
+Auto-pilot analysis status and results. Returns the current state of the background autopilot run triggered by fingerprinting.
+
+**Response (planning):**
+```json
+{"status": "planning"}
+```
+
+**Response (running):**
+```json
+{"status": "running"}
+```
+
+**Response (complete):**
+```json
+{
+  "status": "complete",
+  "completed_steps": 5,
+  "total_steps": 5,
+  "results": [
+    {
+      "step": "describe_data",
+      "status": "complete",
+      "question": "Describe the dataset",
+      "narrative": "This dataset contains 7043 customer records..."
+    }
+  ],
+  "summary": "The analysis reveals that contract type and tenure are the strongest predictors of churn..."
+}
+```
+
+**Response (failed):**
+```json
+{"status": "failed", "error": "Both LLM providers unavailable"}
+```
 
 ---
 
@@ -84,7 +129,7 @@ Detect the domain of the dataset. Currently uses 3-layer ensemble detection (col
 
 ### POST /api/ask
 
-Ask a natural-language question. Routes to the best skill automatically via FailoverProvider.
+Ask a natural-language question. Routes to the best skill automatically via semantic router + FailoverProvider.
 
 **Headers:** `x-session-id: <session_id>`
 
@@ -107,7 +152,7 @@ Ask a natural-language question. Routes to the best skill automatically via Fail
   "skill": "analyze_correlations",
   "confidence": 0.95,
   "reasoning": "User asked about correlations",
-  "route_method": "llm",
+  "route_method": "semantic",
   "result": {},
   "narrative": "The strongest correlation is between...",
   "narrative_pending": false,
@@ -195,7 +240,7 @@ Poll for the narrative of a previous /ask result. Blocks up to `timeout` seconds
 
 ### POST /api/chart/create
 
-Create a chart from the dataset.
+Create a chart from the dataset. Supports 13 chart types.
 
 **Headers:** `x-session-id: <session_id>`
 
@@ -209,6 +254,8 @@ Create a chart from the dataset.
   "title": "Price vs Revenue"
 }
 ```
+
+**Chart types:** `bar`, `barh`, `line`, `scatter`, `histogram`, `box`, `violin`, `heatmap`, `pie`, `area`, `density`, `count`, `pair`
 
 **Response:** Includes `image_base64` (PNG) and/or `plotly_json` (interactive).
 
@@ -300,34 +347,26 @@ Delete a session and its uploaded data. Removes from both in-memory cache and SQ
 
 ---
 
-## Planned Endpoints (D3)
+## Endpoint Summary
 
-### GET /api/autopilot/{session_id}
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | /api/upload | Upload dataset, create session |
+| GET | /api/preview | Preview rows |
+| GET | /api/profile | Full dataset profile |
+| POST | /api/fingerprint/{session_id} | LLM-driven domain understanding |
+| GET | /api/autopilot/{session_id} | Auto-pilot status and results |
+| POST | /api/ask | Natural language question |
+| POST | /api/analyze | Run specific skill |
+| GET | /api/history | Session analysis history |
+| GET | /api/narrative | Poll for narrative |
+| POST | /api/chart/create | Create chart |
+| GET | /api/chart/suggest | LLM chart suggestions |
+| POST | /api/export/{format} | Generate report |
+| GET | /api/export/download/{filename} | Download report |
+| WS | /api/ws/chat | Streaming chat |
+| GET | /health | Health check |
+| GET | /api/sessions | List sessions |
+| DELETE | /api/sessions/{session_id} | Delete session |
 
-Auto-pilot analysis status and results.
-
-**Response (running):**
-```json
-{"status": "running", "completed_steps": 3, "total_steps": 5, "results": []}
-```
-
-**Response (complete):**
-```json
-{
-  "status": "complete",
-  "result": {
-    "understanding": {"domain": "telecom customer churn", "domain_short": "Telecom"},
-    "plan": {"title": "Analysis of Telecom Dataset", "steps": []},
-    "results": [],
-    "summary": "Executive summary...",
-    "total_duration_seconds": 25.4,
-    "completed_steps": 5,
-    "skipped_steps": 0
-  }
-}
-```
-
-**Response (failed):**
-```json
-{"status": "failed", "error": "Both LLM providers unavailable"}
-```
+**Total: 17 endpoints** (13 REST + 1 WebSocket + 2 system + 1 delete)
