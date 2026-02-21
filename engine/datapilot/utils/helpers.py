@@ -74,7 +74,10 @@ def load_data(file_path: str) -> pd.DataFrame:
 
     ext = p.suffix.lower()
     if ext == ".csv":
-        return pd.read_csv(p)
+        try:
+            return pd.read_csv(p)
+        except UnicodeDecodeError:
+            return pd.read_csv(p, encoding="latin-1")
     elif ext == ".xlsx":
         return pd.read_excel(p, engine="openpyxl")
     elif ext == ".xls":

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..utils.config import Config
-from .provider import LLMProvider, NarrativeResult, RoutingResult
+from .provider import LLMProvider, NarrativeResult, RoutingResult, smart_fallback_suggestions
 
 logger = logging.getLogger("datapilot.llm.groq")
 
@@ -171,6 +171,9 @@ class GroqProvider(LLMProvider):
             "4. Never include filler like 'These findings provide insight...' or meta-commentary.\n"
             "5. Focus on CURRENT analysis results. Previous context is reference only.\n"
             "6. Never repeat the same statistic twice.\n"
+            "7. For binary coded columns (0/1), 0 means No and 1 means Yes. "
+            "Use value_labels from the data when available. "
+            "E.g. if Survived has 0=549, 1=342, that means 549 did NOT survive and 342 survived.\n"
             "Respond ONLY with valid JSON:\n"
             '{"text": "<3-5 sentence narrative with real numbers>", '
             '"key_points": ["<specific finding with number>", ...], '
@@ -278,7 +281,11 @@ class GroqProvider(LLMProvider):
             f"Dataset: {data_context.get('shape', 'unknown')}\n"
             f"Columns:\n{columns_info}\n\n"
             f"Allowed chart types: {allowed_types}\n\n"
-            "Suggest 4-6 charts ranked by insight value. Use exact column names from the list above.\n"
+            "Rules:\n"
+            "- Use at least 4 DIFFERENT chart types. Do not repeat chart_type.\n"
+            "- Skip ID columns (unique count equals row count) — they have no analytical value.\n"
+            "- Use exact column names from the list above.\n"
+            "- Rank by insight value.\n\n"
             "Respond with a JSON array: "
             '[{"chart_type": "<type>", "x": "<column_name>", "y": "<column_name_or_null>", '
             '"hue": "<column_name_or_null>", "title": "<descriptive title>", '
@@ -328,52 +335,10 @@ class GroqProvider(LLMProvider):
 
                 suggestions.append(item)
 
-            return {"suggestions": suggestions}
+            return {"suggestions": suggestions, "source": "llm"}
         except Exception as e:
             logger.warning(f"Groq chart suggestion failed: {e}")
-            # Smart fallback: build 2 default suggestions using actual column names
-            cols = data_context.get("columns", [])
-            numeric_col = None
-            categorical_col = None
-            second_numeric_col = None
-            for c in cols:
-                if c.get("semantic_type") == "numeric" and numeric_col is None:
-                    numeric_col = c["name"]
-                elif c.get("semantic_type") == "numeric" and second_numeric_col is None:
-                    second_numeric_col = c["name"]
-                elif c.get("semantic_type") == "categorical" and categorical_col is None:
-                    categorical_col = c["name"]
-
-            fallback: List[Dict[str, Any]] = [
-                {
-                    "chart_type": "histogram",
-                    "x": numeric_col,
-                    "y": None,
-                    "hue": None,
-                    "title": f"Distribution of {numeric_col}" if numeric_col else "Data Distribution",
-                    "reason": "Histograms are a good starting point to understand value distributions.",
-                },
-            ]
-            if numeric_col and second_numeric_col:
-                fallback.append({
-                    "chart_type": "scatter",
-                    "x": numeric_col,
-                    "y": second_numeric_col,
-                    "hue": categorical_col,
-                    "title": f"{numeric_col} vs {second_numeric_col}",
-                    "reason": "Scatter plots reveal relationships between numeric variables.",
-                })
-            elif numeric_col and categorical_col:
-                fallback.append({
-                    "chart_type": "box",
-                    "x": categorical_col,
-                    "y": numeric_col,
-                    "hue": None,
-                    "title": f"{numeric_col} by {categorical_col}",
-                    "reason": "Box plots show how a numeric variable varies across categories.",
-                })
-
-            return {"suggestions": fallback}
+            return smart_fallback_suggestions(data_context)
 
     def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
         """Classify dataset domain using Groq (simple interface).

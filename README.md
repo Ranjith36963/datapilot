@@ -4,14 +4,22 @@
 
 DataPilot routes your questions to **81+ analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by Groq LLMs.
 
+## Screenshots
+
+| Upload | Explore & Chat | Visualize |
+|--------|---------------|-----------|
+| ![Upload](docs/screenshots/upload.png) | ![Explore](docs/screenshots/explore.png) | ![Visualize](docs/screenshots/visualize.png) |
+
 ## Features
 
 - **Natural Language Q&A** — Ask "What predicts churn?" and DataPilot picks the right analysis
 - **81 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
-- **LLM Routing** — Groq (default), Ollama, Claude, or OpenAI to interpret questions
+- **Smart 4-Tier Routing** — Keywords → LLM → Semantic Intent → Fallback (works even without API keys)
+- **Multi-LLM Support** — Groq + Gemini (task-aware failover), Ollama, Claude, or OpenAI
 - **Interactive Chat** — Streaming responses with key points and follow-up suggestions
 - **Chart Builder** — AI-suggested visualizations with manual controls
 - **Report Export** — PDF, Word, and PowerPoint reports from your analysis history
+- **Auto-Pilot** — LLM generates and executes a full analysis plan automatically
 - **Dark/Light Mode** — Clean, modern interface built with Next.js and Tailwind
 
 ## Quick Start
@@ -64,11 +72,16 @@ Get a free API key at [console.groq.com](https://console.groq.com).
 │   :3000      │     │   + WebSocket     │     │  81+ skills     │
 └──────────────┘     │   :8000           │     └────────┬────────┘
                      └────────┬─────────┘              │
-                              │                        │
-                     ┌────────▼─────────┐     ┌────────▼────────┐
-                     │  Session Manager │     │  LLM Provider   │
-                     │  In-memory state │     │  Groq/Ollama/   │
-                     └──────────────────┘     │  Claude/OpenAI  │
+                              │                   ┌────▼────────────┐
+                     ┌────────▼─────────┐    │  4-Tier Router   │
+                     │  Session Manager │    │  Keywords → LLM  │
+                     │  SQLite + Cache  │    │  → Semantic →    │
+                     └──────────────────┘    │    Fallback      │
+                                              └────┬────────────┘
+                                                   │
+                                              ┌────▼────────────┐
+                                              │  LLM Failover   │
+                                              │  Groq + Gemini  │
                                               └─────────────────┘
 ```
 
@@ -123,7 +136,8 @@ API docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `GROQ_API_KEY` | — | Groq API key (required for default provider) |
+| `GROQ_API_KEY` | — | Groq API key (free at [console.groq.com](https://console.groq.com)) |
+| `GEMINI_API_KEY` | — | Gemini API key (free at [aistudio.google.com](https://aistudio.google.com)) |
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model name |
 | `DATAPILOT_LLM_PROVIDER` | `groq` | LLM provider: `groq`, `ollama`, `claude`, `openai` |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (if using Ollama) |
@@ -131,6 +145,8 @@ API docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 | `ANTHROPIC_API_KEY` | — | Anthropic API key (for Claude) |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL for frontend |
+
+> **Note:** DataPilot works without any API keys! The semantic router handles question routing intelligently. LLM keys enhance narratives and enable smart_query, but are optional.
 
 ## Development
 
@@ -152,7 +168,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 
 **Frontend:** Next.js 16 · TypeScript · Tailwind CSS 4 · lucide-react · next-themes · react-dropzone
 
-**LLM:** Groq (default) · Ollama (local) · Anthropic Claude · OpenAI GPT
+**LLM:** Groq + Gemini (task-aware failover) · Ollama (local) · Anthropic Claude · OpenAI GPT
 
 ## License
 

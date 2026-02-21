@@ -146,7 +146,22 @@ class Executor:
             )
         except KeyError as e:
             elapsed = time.time() - start
-            error_msg = f"Missing required column: {e}. Check that the column exists in your dataset."
+            # Fuzzy column suggestion for KeyError
+            col_name = str(e).strip("'\"")
+            df_cols = list(df.columns) if df is not None else []
+            if df_cols:
+                import difflib
+                suggestions = difflib.get_close_matches(
+                    col_name.lower(), [c.lower() for c in df_cols], n=3, cutoff=0.5
+                )
+                if suggestions:
+                    col_map = {c.lower(): c for c in df_cols}
+                    originals = [col_map[s] for s in suggestions]
+                    error_msg = f"Column '{col_name}' not found. Did you mean: {', '.join(originals)}?"
+                else:
+                    error_msg = f"Column '{col_name}' not found. Available columns: {', '.join(df_cols[:10])}"
+            else:
+                error_msg = f"Missing required column: {e}. Check that the column exists in your dataset."
             logger.error(f"Skill {skill_name} failed: {e}", exc_info=True)
             return ExecutionResult(
                 status="error",

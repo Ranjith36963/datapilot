@@ -130,6 +130,33 @@ def build_data_snapshot(df: pd.DataFrame, filename: str, profile: dict = None) -
 
     lines.append("")
 
+    # Missing values summary
+    null_counts = df.isnull().sum()
+    total_nulls = int(null_counts.sum())
+    if total_nulls > 0:
+        lines.append("Missing values:")
+        for col in cols_to_show:
+            nc = int(null_counts.get(col, 0))
+            if nc > 0:
+                pct = round(nc / len(df) * 100, 1)
+                lines.append(f"  - {col}: {nc} ({pct}%)")
+        lines.append("")
+
+    # Profile enrichment (top correlations if available)
+    if profile and isinstance(profile, dict):
+        corr_data = profile.get("correlations") or profile.get("correlation_matrix")
+        if isinstance(corr_data, dict):
+            pairs = []
+            for k, v in corr_data.items():
+                if isinstance(v, (int, float)) and abs(v) > 0.3:
+                    pairs.append((k, round(v, 3)))
+            if pairs:
+                pairs.sort(key=lambda x: abs(x[1]), reverse=True)
+                lines.append("Notable correlations:")
+                for name, val in pairs[:5]:
+                    lines.append(f"  - {name}: {val}")
+                lines.append("")
+
     # Sample rows (first 5, limited to first 10 columns)
     lines.append("Sample rows:")
     sample = df.head(5)
@@ -177,7 +204,8 @@ def _try_understand(snapshot: str, provider) -> Optional[DatasetUnderstanding]:
         logger.warning("LLM response missing 'domain' field")
         return None
 
-    provider_name = getattr(provider, "name", "unknown")
+    # Prefer _provider_used injected by FailoverProvider, fallback to provider.name
+    provider_name = response.pop("_provider_used", None) or getattr(provider, "name", "DataPilot AI")
 
     try:
         return DatasetUnderstanding(

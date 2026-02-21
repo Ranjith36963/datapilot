@@ -1,12 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import {
   HelpCircle,
-  Info,
-  Target,
-  Sparkles,
-  AlertTriangle,
 } from "lucide-react";
 
 import type { DomainFingerprintResponse } from "@/lib/api";
@@ -52,8 +47,6 @@ function getDomainIcon(domain: string, domainShort: string): string {
 }
 
 export function DomainBadge({ fingerprint }: DomainBadgeProps) {
-  const [showTooltip, setShowTooltip] = useState(false);
-
   const confidence = Math.round(fingerprint.confidence * 100);
   const colors = getConfidenceColor(fingerprint.confidence);
 
@@ -77,115 +70,6 @@ export function DomainBadge({ fingerprint }: DomainBadgeProps) {
           {confidence}% {colors.label}
         </span>
       </div>
-
-      {/* Details Tooltip Button */}
-      <div className="relative">
-        <button
-          onMouseEnter={() => setShowTooltip(true)}
-          onMouseLeave={() => setShowTooltip(false)}
-          onFocus={() => setShowTooltip(true)}
-          onBlur={() => setShowTooltip(false)}
-          onClick={() => setShowTooltip((v) => !v)}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-          aria-label="Show dataset understanding details"
-          aria-expanded={showTooltip}
-        >
-          <Info className="h-3.5 w-3.5" />
-          <span className="text-xs font-medium">Details</span>
-        </button>
-
-        {showTooltip && (
-          <div className="absolute top-full left-0 mt-2 w-80 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
-            <div className="space-y-2">
-              {/* Domain description */}
-              <div>
-                <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Domain
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-400 capitalize">
-                  {fingerprint.domain}
-                </p>
-              </div>
-
-              {/* Target column */}
-              {fingerprint.target_column && (
-                <div className="flex items-center gap-2">
-                  <Target className="h-3.5 w-3.5 text-violet-500" />
-                  <span className="text-xs text-slate-600 dark:text-slate-400">
-                    Target:{" "}
-                    <span className="font-mono px-1 py-0.5 rounded bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400">
-                      {fingerprint.target_column}
-                    </span>
-                    {fingerprint.target_type && (
-                      <span className="ml-1 text-slate-400 dark:text-slate-500">
-                        ({fingerprint.target_type})
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {/* Key Observations */}
-              {fingerprint.key_observations.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1 mb-1">
-                    <Sparkles className="h-3 w-3 text-blue-500" />
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Key Observations
-                    </p>
-                  </div>
-                  <ul className="space-y-1">
-                    {fingerprint.key_observations.map((obs, i) => (
-                      <li
-                        key={i}
-                        className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-1.5"
-                      >
-                        <span className="text-blue-500 mt-0.5">&bull;</span>
-                        <span>{obs}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Data Quality Notes */}
-              {fingerprint.data_quality_notes.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1 mb-1">
-                    <AlertTriangle className="h-3 w-3 text-amber-500" />
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Data Quality
-                    </p>
-                  </div>
-                  <ul className="space-y-1">
-                    {fingerprint.data_quality_notes.map((note, i) => (
-                      <li
-                        key={i}
-                        className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-1.5"
-                      >
-                        <span className="text-amber-500 mt-0.5">&bull;</span>
-                        <span>{note}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Provider */}
-              {fingerprint.provider_used && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Analyzed by{" "}
-                    <span className="font-medium capitalize">
-                      {fingerprint.provider_used}
-                    </span>
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -195,7 +79,6 @@ export function DomainBadgeSkeleton() {
     <div className="flex items-center gap-2">
       <div className="h-8 w-32 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
       <div className="h-8 w-40 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
-      <div className="h-8 w-20 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
     </div>
   );
 }

@@ -171,6 +171,7 @@ class FailoverProvider(LLMProvider):
                 if result and isinstance(result, dict) and "domain" in result:
                     elapsed = round((time.time() - start) * 1000)
                     logger.info(f"Understand handled by {name} ({elapsed}ms)")
+                    result["_provider_used"] = name
                     return result
             except Exception as e:
                 logger.warning(f"Understand failed with {name}: {e}")

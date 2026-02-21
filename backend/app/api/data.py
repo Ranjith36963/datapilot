@@ -167,7 +167,7 @@ async def fingerprint_dataset_endpoint(
             analyst.df,
             filename,
             profile,
-            analyst.llm_provider,
+            analyst.provider,
         )
 
         if understanding is None:
@@ -268,7 +268,7 @@ async def _run_autopilot_background(session_id: str, analyst) -> None:
         await session_manager._store.update_autopilot(session_id, "planning")
         skills_desc = get_available_skills_description()
         plan = await generate_analysis_plan(
-            understanding, skills_desc, analyst.llm_provider
+            understanding, skills_desc, analyst.provider
         )
         if plan is None:
             await session_manager._store.update_autopilot(session_id, "failed")
@@ -280,14 +280,36 @@ async def _run_autopilot_background(session_id: str, analyst) -> None:
 
         # Phase 3: Summary
         summary = await generate_summary(
-            understanding, result.results, analyst.llm_provider
+            understanding, result.results, analyst.provider
         )
+        if summary is None:
+            summary = f"Completed {result.completed_steps}/{len(plan.steps)} analysis steps."
         result.summary = summary
 
         # Persist history (autopilot questions get added to analyst.history)
         await session_manager.persist_history(session_id)
 
-        # Store complete results
+        # Store complete results with question and narrative per step
+        step_results = []
+        for i, r in enumerate(result.results):
+            entry = {"step": r["step"], "status": r["status"]}
+            if i < len(plan.steps):
+                entry["question"] = plan.steps[i].question
+            # Extract narrative from step result if available
+            step_result = r.get("result")
+            if step_result is not None:
+                if isinstance(step_result, dict):
+                    narrative = step_result.get("narrative")
+                elif hasattr(step_result, "narrative"):
+                    narrative = getattr(step_result, "narrative", None)
+                else:
+                    narrative = None
+                if narrative:
+                    entry["narrative"] = str(narrative)[:300]
+            if r.get("error"):
+                entry["error"] = str(r["error"])[:200]
+            step_results.append(entry)
+
         autopilot_data = {
             "plan_title": plan.title,
             "completed_steps": result.completed_steps,
@@ -295,10 +317,7 @@ async def _run_autopilot_background(session_id: str, analyst) -> None:
             "skipped_steps": result.skipped_steps,
             "total_duration_seconds": result.total_duration_seconds,
             "summary": summary,
-            "results": [
-                {"step": r["step"], "status": r["status"]}
-                for r in result.results
-            ],
+            "results": step_results,
         }
         await session_manager._store.update_autopilot(
             session_id, "complete", autopilot_data
@@ -310,7 +329,7 @@ async def _run_autopilot_background(session_id: str, analyst) -> None:
         )
         try:
             await session_manager._store.update_autopilot(
-                session_id, "failed"
+                session_id, "failed", {"error": str(e)[:500]}
             )
         except Exception:
             pass
@@ -336,6 +355,7 @@ async def get_autopilot_status(session_id: str):
             total_steps=results_data.get("total_steps"),
             results=results_data.get("results"),
             summary=results_data.get("summary"),
+            error=results_data.get("error"),
         )
 
     return AutopilotStatusResponse(status=status)

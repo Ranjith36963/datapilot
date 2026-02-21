@@ -67,6 +67,7 @@ export function useFingerprint(
 
     return () => {
       cancelled = true;
+      hasFiredRef.current = null; // Allow re-fire on strict mode remount
     };
   }, [sessionId, cachedFingerprint]);
 

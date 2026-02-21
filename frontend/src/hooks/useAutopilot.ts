@@ -77,6 +77,7 @@ export function useAutopilot(
   const completedSteps = cachedStatus?.completed_steps ?? 0;
   const totalSteps = cachedStatus?.total_steps ?? 0;
   const isLoading = status === "planning" || status === "running";
+  const error = cachedStatus?.error ?? null;
 
-  return { status, results, summary, completedSteps, totalSteps, isLoading };
+  return { status, results, summary, completedSteps, totalSteps, isLoading, error };
 }

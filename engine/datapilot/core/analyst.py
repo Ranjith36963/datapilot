@@ -142,6 +142,153 @@ _NARRATION_EXCLUDED_KEYS = {
 }
 
 
+def _verify_narrative(
+    narrative: NarrativeResult,
+    analysis_result: Dict[str, Any],
+) -> bool:
+    """Verify that LLM narrative numbers actually appear in the analysis result.
+
+    Extracts all numbers from the narrative text and checks what percentage
+    appear in the result data. Rejects narratives where < 50% of numbers match.
+    Also checks that suggestion column names match actual dataset columns.
+    """
+    import re as _re
+
+    text = narrative.text
+    if not text:
+        return False
+
+    # Extract all numbers from narrative text
+    narrative_numbers = set()
+    for match in _re.finditer(r'\d+\.?\d*', text):
+        num_str = match.group()
+        try:
+            num = float(num_str)
+            narrative_numbers.add(num)
+            # Also add integer form if it's a whole number
+            if num == int(num):
+                narrative_numbers.add(int(num))
+        except ValueError:
+            continue
+
+    if not narrative_numbers:
+        # No numbers to verify — narrative is text-only, accept it
+        return True
+
+    # Flatten all numeric values from the analysis result (recursive)
+    result_numbers = set()
+
+    def _collect_numbers(obj):
+        if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+            result_numbers.add(obj)
+            if isinstance(obj, float) and obj == int(obj):
+                result_numbers.add(int(obj))
+            # Add common rounded forms
+            if isinstance(obj, float):
+                for decimals in (0, 1, 2, 3, 4):
+                    result_numbers.add(round(obj, decimals))
+        elif isinstance(obj, dict):
+            for v in obj.values():
+                _collect_numbers(v)
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                _collect_numbers(item)
+        elif isinstance(obj, str):
+            # Extract numbers from string values too (e.g. "42.5%")
+            for m in _re.finditer(r'\d+\.?\d*', obj):
+                try:
+                    result_numbers.add(float(m.group()))
+                    if float(m.group()) == int(float(m.group())):
+                        result_numbers.add(int(float(m.group())))
+                except ValueError:
+                    pass
+
+    _collect_numbers(analysis_result)
+
+    # Check what % of narrative numbers appear in result
+    matched = sum(1 for n in narrative_numbers if n in result_numbers)
+    match_pct = matched / len(narrative_numbers) if narrative_numbers else 1.0
+
+    if match_pct < 0.5:
+        logger.warning(
+            f"Narrative verification failed: {matched}/{len(narrative_numbers)} "
+            f"numbers matched ({match_pct:.0%})"
+        )
+        return False
+
+    # Phase 2: Attribution check — are numbers attributed to the right columns?
+    # Build number-to-context mapping from the result data
+    number_context: Dict[float, set] = {}  # number -> set of context keys
+
+    def _collect_with_context(obj, context_keys: frozenset = frozenset()):
+        if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+            for rounded in (obj,) + tuple(round(obj, d) for d in range(5)):
+                number_context.setdefault(rounded, set()).update(context_keys)
+                if isinstance(rounded, float) and rounded == int(rounded):
+                    number_context.setdefault(int(rounded), set()).update(context_keys)
+        elif isinstance(obj, dict):
+            for k, v in obj.items():
+                _collect_with_context(v, context_keys | {str(k).lower()})
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                _collect_with_context(item, context_keys)
+
+    _collect_with_context(analysis_result)
+
+    # Find (number, nearby_column_name) pairs in narrative
+    dataset_columns = analysis_result.get("_dataset_columns", [])
+    if dataset_columns and number_context:
+        col_names_lower = {c.lower() for c in dataset_columns}
+        attributions_checked = 0
+        attributions_correct = 0
+
+        # For each number in the narrative, find nearby column references
+        for match in _re.finditer(r'\d+\.?\d*', text):
+            try:
+                num = float(match.group())
+            except ValueError:
+                continue
+            if num not in number_context:
+                continue
+
+            # Look in a window of ~60 chars around the number for column names
+            start = max(0, match.start() - 60)
+            end = min(len(text), match.end() + 60)
+            window = text[start:end].lower()
+
+            nearby_cols = [c for c in col_names_lower if c in window]
+            if not nearby_cols:
+                continue  # number not near any column name — skip
+
+            # Check if any nearby column matches the number's source context
+            source_contexts = number_context.get(num, set())
+            attributions_checked += 1
+            if any(col in ctx or ctx in col
+                   for col in nearby_cols for ctx in source_contexts):
+                attributions_correct += 1
+
+        # Allow 30% misattribution tolerance
+        if attributions_checked >= 3:
+            attr_pct = attributions_correct / attributions_checked
+            if attr_pct < 0.3:
+                logger.warning(
+                    f"Narrative attribution check failed: {attributions_correct}/"
+                    f"{attributions_checked} attributions correct ({attr_pct:.0%})"
+                )
+                return False
+
+    # Verify suggestions reference actual column names
+    if dataset_columns and narrative.suggestions:
+        col_names_lower_set = {c.lower() for c in dataset_columns}
+        for suggestion in narrative.suggestions:
+            words = suggestion.lower().split()
+            has_column_ref = any(w in col_names_lower_set for w in words)
+            if not has_column_ref:
+                continue
+
+    return True
+
+
 def _sanitize_for_narration(
     result: Dict[str, Any],
     data_context: Optional[Dict[str, Any]] = None,
@@ -155,6 +302,13 @@ def _sanitize_for_narration(
     cleaned = {k: copy.deepcopy(v) for k, v in result.items() if k not in _NARRATION_EXCLUDED_KEYS}
     if data_context:
         cleaned["_dataset_columns"] = [c["name"] for c in data_context.get("columns", [])]
+
+    # When pre-computed summary stats are available (smart_query), replace raw rows
+    # so the LLM narrates from accurate aggregates instead of truncated row data
+    if "data_summary" in cleaned and "data" in cleaned:
+        total = cleaned.get("total_rows", "?")
+        cleaned["data"] = f"[{total} rows — see data_summary for accurate statistics]"
+
     return cleaned
 
 
@@ -443,15 +597,40 @@ def _template_narrative(
     elif skill_name == "smart_query":
         code = result.get("generated_code", "")
         total = result.get("total_rows", "?")
-        text = f"Custom query executed successfully ({total} rows in result)."
-        if code:
-            key_points.append(f"Code: {code[:80]}...")
-        data = result.get("data", [])
-        if isinstance(data, list):
-            for item in data[:3]:
-                vals = list(item.values())
-                if vals:
-                    key_points.append(" | ".join(str(v) for v in vals[:4]))
+        summary = result.get("data_summary", {})
+        asked = result.get("question_asked", "")
+
+        if summary and isinstance(summary, dict) and summary.get("columns"):
+            col_summaries = summary.get("columns", {})
+            preamble = f"To answer '{asked}': " if asked else ""
+            text = f"{preamble}Custom query returned {total} rows across {len(col_summaries)} columns."
+            if code:
+                key_points.append(f"Code: {code[:80]}...")
+            for col_name, col_stats in list(col_summaries.items())[:3]:
+                ctype = col_stats.get("type", "")
+                if ctype == "categorical":
+                    vc = col_stats.get("value_counts", {})
+                    if vc:
+                        top = list(vc.items())[:3]
+                        parts = ", ".join(f"{k}: {v['count'] if isinstance(v, dict) else v}" for k, v in top)
+                        key_points.append(f"{col_name}: {parts}")
+                elif ctype == "numeric":
+                    mean = col_stats.get("mean")
+                    if mean is not None:
+                        key_points.append(f"{col_name}: mean={_fmt(mean)}, min={_fmt(col_stats.get('min'))}, max={_fmt(col_stats.get('max'))}")
+                elif ctype == "boolean":
+                    key_points.append(f"{col_name}: True={col_stats.get('true_count', 0)}, False={col_stats.get('false_count', 0)}")
+        else:
+            preamble = f"To answer '{asked}': " if asked else ""
+            text = f"{preamble}Custom query executed successfully ({total} rows in result)."
+            if code:
+                key_points.append(f"Code: {code[:80]}...")
+            data = result.get("data", [])
+            if isinstance(data, list):
+                for item in data[:3]:
+                    vals = list(item.values())
+                    if vals:
+                        key_points.append(" | ".join(str(v) for v in vals[:4]))
         suggestions = _col_suggestions()
 
     else:
@@ -731,7 +910,11 @@ class Analyst:
             if narrative and narrative.text:
                 # Reject narratives with "?" placeholders or too short
                 if "? " not in narrative.text and len(narrative.text) > 30:
-                    return narrative
+                    if _verify_narrative(narrative, sanitized):
+                        return narrative
+                    else:
+                        print(f"[DataPilot] LLM narrative rejected (numbers don't match result data), using template", file=sys.stderr)
+                        logger.warning("Narrative rejected: numbers don't match result data")
                 else:
                     print(f"[DataPilot] LLM narrative rejected (contains '?' or too short), using template", file=sys.stderr)
         except Exception as e:

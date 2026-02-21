@@ -175,7 +175,7 @@ class TestSuggestChartFallback:
     """Test the fallback when Groq API fails."""
 
     def test_api_failure_fallback(self, data_context):
-        """On API failure, should return suggestions list with fallback items."""
+        """On API failure, should return diverse fallback suggestions."""
         provider = GroqProvider(api_key="test-key")
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
@@ -185,15 +185,16 @@ class TestSuggestChartFallback:
 
         assert "suggestions" in result
         assert isinstance(result["suggestions"], list)
-        assert len(result["suggestions"]) >= 1
+        assert len(result["suggestions"]) >= 3
         first = result["suggestions"][0]
         assert first["chart_type"] == "histogram"
-        assert first["x"] == "age"  # First numeric column
+        # Should pick a real numeric column (not an ID)
+        assert first["x"] in ("age", "income", "score")
         assert first["y"] is None
         assert "reason" in first
 
     def test_fallback_with_two_numeric_columns(self, data_context):
-        """Fallback should include scatter plot when two numeric columns exist."""
+        """Smart fallback should include diverse chart types including scatter."""
         provider = GroqProvider(api_key="test-key")
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
@@ -202,22 +203,26 @@ class TestSuggestChartFallback:
         result = provider.suggest_chart(data_context)
 
         assert "suggestions" in result
-        assert len(result["suggestions"]) == 2
-        assert result["suggestions"][1]["chart_type"] == "scatter"
-        assert result["suggestions"][1]["x"] == "age"
-        assert result["suggestions"][1]["y"] == "income"
+        assert len(result["suggestions"]) >= 4  # smart fallback builds 4-5
+        chart_types = [s["chart_type"] for s in result["suggestions"]]
+        assert "histogram" in chart_types
+        assert "scatter" in chart_types
+        # Should have diverse types, not just histogram + scatter
+        assert len(set(chart_types)) >= 3
+        # Should include source indicator
+        assert result.get("source") == "fallback"
 
     def test_fallback_empty_columns(self):
-        """Fallback with no columns returns basic defaults."""
+        """Fallback with no columns returns at least one suggestion."""
         provider = GroqProvider(api_key="test-key")
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = Exception("API error")
         provider._client = mock_client
 
-        result = provider.suggest_chart({"columns": [], "shape": "0 rows x 0 columns"})
+        result = provider.suggest_chart({"columns": [], "shape": "0 rows x 0 columns", "n_rows": 0})
 
         assert "suggestions" in result
         assert isinstance(result["suggestions"], list)
-        assert len(result["suggestions"]) >= 1
-        assert result["suggestions"][0]["chart_type"] == "histogram"
-        assert result["suggestions"][0]["x"] is None
+        # Empty dataset gets no suggestions (no columns to chart)
+        assert len(result["suggestions"]) == 0
+        assert result.get("source") == "fallback"

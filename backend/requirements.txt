@@ -18,6 +18,7 @@ xgboost>=2.0
 lightgbm>=4.0
 optuna>=3.4
 shap>=0.43
+sentence-transformers>=2.2
 
 # NLP
 textblob>=0.18

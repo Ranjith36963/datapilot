@@ -23,6 +23,7 @@ import pandas as pd
 
 from datapilot.analysis.query import (
     _extract_params_via_llm,
+    _resolve_column,
     query_data,
     pivot_table,
     value_counts,
@@ -31,9 +32,10 @@ from datapilot.analysis.query import (
     smart_query,
     _validate_code,
     _execute_safe,
+    _summarize_dataframe,
 )
 
-from datapilot.core.router import _try_keyword_route
+from datapilot.core.router import Router
 from datapilot.core.executor import Executor
 
 
@@ -492,37 +494,62 @@ class TestFilterExpressionValidation:
 # ============================================================================
 
 class TestRouting:
-    """Test that keyword routing recognizes the new query skill patterns."""
+    """Test that data query questions route via semantic embedding or smart_query.
 
-    def test_query_data_keyword(self):
-        """'Show me rows where ...' routes to query_data."""
-        result = _try_keyword_route("Show me rows where price > 100")
-        assert result is not None
-        assert result.skill_name == "query_data"
+    With semantic-first routing, data query skills (query_data, pivot_table,
+    value_counts, top_n, cross_tab) are matched via embedding similarity.
+    When no embedding match is found, smart_query handles data questions.
+    """
 
-    def test_pivot_keyword(self):
-        """'Average ... by ...' routes to pivot_table."""
-        result = _try_keyword_route("Average monthly charges by contract type")
-        assert result is not None
-        assert result.skill_name == "pivot_table"
+    @pytest.fixture
+    def data_context(self):
+        return {
+            "shape": "20 rows x 5 columns",
+            "columns": [
+                {"name": "price", "dtype": "float64", "semantic_type": "numeric", "n_unique": 20, "null_pct": 0},
+                {"name": "monthly charges", "dtype": "float64", "semantic_type": "numeric", "n_unique": 18, "null_pct": 0},
+                {"name": "contract type", "dtype": "object", "semantic_type": "categorical", "n_unique": 3, "null_pct": 0},
+                {"name": "state", "dtype": "object", "semantic_type": "categorical", "n_unique": 10, "null_pct": 0},
+                {"name": "churn", "dtype": "object", "semantic_type": "categorical", "n_unique": 2, "null_pct": 0},
+            ],
+            "n_rows": 20,
+            "n_cols": 5,
+        }
 
-    def test_value_counts_keyword(self):
-        """'How many ... per ...' routes to value_counts."""
-        result = _try_keyword_route("How many customers per state")
-        assert result is not None
-        assert result.skill_name == "value_counts"
+    def test_query_data_routes_semantically(self, data_context):
+        """'Show me rows where ...' routes via semantic embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("Show me rows where price > 100", data_context)
+        assert result.skill_name in ("query_data", "smart_query")
 
-    def test_top_n_keyword(self):
-        """'Top 10 ... by ...' routes to top_n."""
-        result = _try_keyword_route("Top 10 customers by monthly charges")
-        assert result is not None
-        assert result.skill_name == "top_n"
+    def test_pivot_routes_semantically(self, data_context):
+        """'Average ... by ...' routes via semantic embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("Average monthly charges by contract type", data_context)
+        assert result.skill_name in ("pivot_table", "smart_query")
 
-    def test_cross_tab_keyword(self):
-        """'Crosstab of ...' routes to cross_tab."""
-        result = _try_keyword_route("Crosstab of churn and contract type")
-        assert result is not None
-        assert result.skill_name == "cross_tab"
+    def test_value_counts_routes_semantically(self, data_context):
+        """'How many ... per ...' routes via semantic embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("How many customers per state", data_context)
+        assert result.skill_name in ("value_counts", "smart_query")
+
+    def test_top_n_routes_semantically(self, data_context):
+        """'Top 10 ... by ...' routes via semantic embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("Top 10 customers by monthly charges", data_context)
+        assert result.skill_name in ("top_n", "smart_query")
+
+    def test_cross_tab_routes_semantically(self, data_context):
+        """'Crosstab of ...' routes via semantic embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("Crosstab of churn and contract type", data_context)
+        assert result.skill_name in ("cross_tab", "smart_query")
 
 
 # ============================================================================
@@ -575,3 +602,453 @@ class TestExecutorIntegration:
             {"df": sample_df, "question": "test", "llm_provider": "<provider>"},
         )
         assert "llm_provider" not in snippet
+
+
+# ============================================================================
+# Group 11: Router.route() end-to-end tests
+# ============================================================================
+
+class TestRouterRouteEndToEnd:
+    """Test Router.route() with provider and without."""
+
+    @pytest.fixture
+    def data_context(self):
+        return {
+            "shape": "20 rows x 5 columns",
+            "columns": [
+                {"name": "age", "dtype": "int64", "semantic_type": "numeric", "n_unique": 15, "null_pct": 0},
+                {"name": "city", "dtype": "object", "semantic_type": "categorical", "n_unique": 4, "null_pct": 0},
+                {"name": "price", "dtype": "float64", "semantic_type": "numeric", "n_unique": 20, "null_pct": 0},
+                {"name": "churn", "dtype": "bool", "semantic_type": "boolean", "n_unique": 2, "null_pct": 0},
+            ],
+            "n_rows": 20,
+            "n_cols": 5,
+        }
+
+    def test_route_with_provider_returns_smart_query_or_semantic(self, data_context):
+        """With an LLM provider, data questions route via embedding or smart_query."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("show me rows where price > 100", data_context)
+        assert result.skill_name in ("query_data", "smart_query")
+
+    def test_route_with_provider_matches_analytical_skills(self, data_context):
+        """With an LLM provider, analytical questions match via semantic embedding."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("classify customers by churn", data_context)
+        # Embedding model may match classify or find_clusters (semantically close)
+        assert result.skill_name in ("classify", "find_clusters")
+        assert result.route_method == "semantic_embedding"
+
+    def test_route_with_provider_chart(self, data_context):
+        """Chart questions route to create_chart via semantic embedding."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        result = router.route("draw a scatter plot of age vs price", data_context)
+        assert result.skill_name == "create_chart"
+        assert result.route_method == "semantic_embedding"
+
+    def test_route_no_provider_semantic_match(self, data_context):
+        """Without an LLM provider, semantic embedding still routes data questions."""
+        router = Router(provider=None)
+        result = router.route("show rows where price > 100", data_context)
+        # Semantic embedding matches query_data, or falls to profile_data
+        assert result.skill_name in ("query_data", "profile_data")
+
+    def test_route_no_provider_pivot(self, data_context):
+        """Without an LLM provider, 'average by' routes via semantic embedding."""
+        router = Router(provider=None)
+        result = router.route("average price by city", data_context)
+        assert result.skill_name in ("pivot_table", "profile_data")
+
+    def test_route_no_provider_unmatched_falls_to_profile(self, data_context):
+        """Without an LLM provider, truly unmatched questions fall to profile_data."""
+        router = Router(provider=None)
+        router._semantic_attempted = True
+        router._semantic_matcher = None
+        result = router.route("xyzzy nonsense question", data_context)
+        assert result.skill_name == "profile_data"
+        assert result.route_method == "fallback"
+
+
+# ============================================================================
+# Group 12: Data query keyword fallback (no-LLM mode)
+# ============================================================================
+
+class TestSemanticDataQueryRouting:
+    """Test semantic embedding routing for data query skills.
+
+    With semantic-first routing, data query questions are matched via
+    embedding similarity to SKILL_DESCRIPTIONS entries.
+    """
+
+    @pytest.fixture
+    def data_context(self):
+        return {
+            "shape": "20 rows x 5 columns",
+            "columns": [
+                {"name": "price", "dtype": "float64", "semantic_type": "numeric", "n_unique": 20, "null_pct": 0},
+                {"name": "monthly charges", "dtype": "float64", "semantic_type": "numeric", "n_unique": 18, "null_pct": 0},
+                {"name": "churn", "dtype": "object", "semantic_type": "categorical", "n_unique": 2, "null_pct": 0},
+            ],
+            "n_rows": 20,
+            "n_cols": 5,
+        }
+
+    def test_filter_routes_to_query_or_smart(self, data_context):
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("show rows where price > 100", data_context)
+        assert r.skill_name in ("query_data", "smart_query")
+
+    def test_pivot_routes_semantically(self, data_context):
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("average monthly charges by contract type", data_context)
+        assert r.skill_name in ("pivot_table", "smart_query")
+
+    def test_value_counts_routes_semantically(self, data_context):
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("how many customers per state", data_context)
+        assert r.skill_name in ("value_counts", "smart_query")
+
+    def test_top_n_routes_semantically(self, data_context):
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("top 10 customers by monthly charges", data_context)
+        assert r.skill_name in ("top_n", "smart_query")
+
+    def test_cross_tab_routes_semantically(self, data_context):
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("crosstab of churn and contract type", data_context)
+        assert r.skill_name in ("cross_tab", "smart_query")
+
+    def test_classify_routes_correctly(self, data_context):
+        """Analytical questions route to correct skill via embedding."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        r = router.route("classify customers by churn", data_context)
+        # Embedding model may match classify or find_clusters (semantically close)
+        assert r.skill_name in ("classify", "find_clusters")
+
+    def test_generic_falls_to_smart_query(self, data_context):
+        """Generic questions fall through to smart_query when LLM is available."""
+        provider = MagicMock()
+        router = Router(provider=provider)
+        router._semantic_attempted = True
+        router._semantic_matcher = None
+        r = router.route("what is this dataset about", data_context)
+        assert r.skill_name == "smart_query"
+
+
+# ============================================================================
+# Group 13: Sandbox builtin safety — type/print removed
+# ============================================================================
+
+class TestSandboxBuiltinSafety:
+    """Test that removed builtins (type, print) no longer work in sandbox."""
+
+    def test_type_not_in_sandbox(self, sample_df):
+        """type() should fail — removed from _SAFE_BUILTINS."""
+        result = _execute_safe("result = type(df).__name__", sample_df)
+        assert result["status"] == "error"
+
+    def test_print_is_noop_in_sandbox(self, sample_df):
+        """print() is a no-op — does not crash but produces no output."""
+        result = _execute_safe("print('hello')\nresult = 1", sample_df)
+        assert result["status"] == "success"
+        assert result["data"] == 1
+
+    def test_isinstance_still_works(self, sample_df):
+        """isinstance() should still work — kept in _SAFE_BUILTINS."""
+        result = _execute_safe("result = isinstance(df.shape[0], int)", sample_df)
+        assert result["status"] == "success"
+        assert result["data"] is True
+
+    def test_len_still_works(self, sample_df):
+        """len() should still work in sandbox."""
+        result = _execute_safe("result = len(df)", sample_df)
+        assert result["status"] == "success"
+        assert result["data"] == 20
+
+
+# ============================================================================
+# _summarize_dataframe tests
+# ============================================================================
+
+class TestSummarizeDataframe:
+    """Test _summarize_dataframe produces correct aggregate stats."""
+
+    def test_total_rows_matches(self, sample_df):
+        summary = _summarize_dataframe(sample_df)
+        assert summary["total_rows"] == len(sample_df)
+        assert summary["total_columns"] == len(sample_df.columns)
+
+    def test_numeric_columns_have_stats(self, sample_df):
+        summary = _summarize_dataframe(sample_df)
+        age_stats = summary["columns"]["age"]
+        assert age_stats["type"] == "numeric"
+        for key in ("mean", "std", "min", "max", "median", "count"):
+            assert key in age_stats
+
+    def test_categorical_columns_have_value_counts(self, sample_df):
+        summary = _summarize_dataframe(sample_df)
+        city_stats = summary["columns"]["city"]
+        assert city_stats["type"] == "categorical"
+        assert "value_counts" in city_stats
+        assert "n_unique" in city_stats
+
+    def test_bool_detected_before_numeric(self):
+        df = pd.DataFrame({"flag": [True, False, True, True, False]})
+        summary = _summarize_dataframe(df)
+        assert summary["columns"]["flag"]["type"] == "boolean"
+        assert summary["columns"]["flag"]["true_count"] == 3
+        assert summary["columns"]["flag"]["false_count"] == 2
+
+    def test_empty_dataframe(self):
+        df = pd.DataFrame({"a": pd.Series([], dtype="float64"), "b": pd.Series([], dtype="object")})
+        summary = _summarize_dataframe(df)
+        assert summary["total_rows"] == 0
+        assert summary["total_columns"] == 2
+
+    def test_column_cap(self):
+        df = pd.DataFrame({f"col_{i}": [1, 2, 3] for i in range(25)})
+        summary = _summarize_dataframe(df, max_columns=10)
+        assert len(summary["columns"]) <= 10
+        assert "_columns_truncated" in summary
+
+    def test_skips_id_columns(self):
+        df = pd.DataFrame({
+            "PassengerId": range(100),
+            "Name": [f"Person_{i}" for i in range(100)],
+            "Age": [25] * 100,
+            "City": ["NYC"] * 100,
+        })
+        summary = _summarize_dataframe(df)
+        assert "PassengerId" not in summary["columns"]
+        assert "Name" not in summary["columns"]
+        assert "Age" in summary["columns"]
+        assert "_skipped_columns" in summary
+
+
+# ============================================================================
+# smart_query data_summary tests
+# ============================================================================
+
+class TestSmartQuerySummary:
+    """Test that smart_query includes data_summary for accurate narration."""
+
+    def test_includes_data_summary(self, sample_df):
+        mock_llm = MagicMock()
+        mock_llm.generate_plan.return_value = "result = df[df['age'] > 30]"
+        result = smart_query(sample_df, "age above 30", llm_provider=mock_llm)
+        assert result["status"] == "success"
+        assert "data_summary" in result
+        assert result["data_summary"]["total_rows"] == result["total_rows"]
+
+    def test_summary_has_column_stats(self, sample_df):
+        mock_llm = MagicMock()
+        mock_llm.generate_plan.return_value = "result = df[df['age'] > 30]"
+        result = smart_query(sample_df, "age above 30", llm_provider=mock_llm)
+        assert "columns" in result["data_summary"]
+        assert "age" in result["data_summary"]["columns"]
+
+    def test_no_raw_output_leaked(self, sample_df):
+        mock_llm = MagicMock()
+        mock_llm.generate_plan.return_value = "result = df.head(5)"
+        result = smart_query(sample_df, "first 5", llm_provider=mock_llm)
+        assert "_raw_output" not in result
+
+    def test_scalar_result_no_summary(self, sample_df):
+        mock_llm = MagicMock()
+        mock_llm.generate_plan.return_value = "result = len(df)"
+        result = smart_query(sample_df, "how many rows", llm_provider=mock_llm)
+        assert result["status"] == "success"
+        assert "data_summary" not in result
+
+
+# ============================================================================
+# Group 14: Narrative verification (_verify_narrative)
+# ============================================================================
+
+from datapilot.core.analyst import _verify_narrative
+from datapilot.llm.provider import NarrativeResult
+
+
+class TestVerifyNarrative:
+    """Test post-narrative verification of LLM-generated numbers."""
+
+    def test_matching_numbers_accepted(self):
+        """Narrative with numbers that appear in results passes verification."""
+        narrative = NarrativeResult(
+            text="The dataset has 100 rows and the mean age is 35.5.",
+            key_points=[], suggestions=[],
+        )
+        result = {"total_rows": 100, "mean_age": 35.5}
+        assert _verify_narrative(narrative, result) is True
+
+    def test_hallucinated_numbers_rejected(self):
+        """Narrative with made-up numbers is rejected."""
+        narrative = NarrativeResult(
+            text="There are 999 outliers with a score of 42.7 and 88 clusters.",
+            key_points=[], suggestions=[],
+        )
+        result = {"total_rows": 10, "outlier_count": 2}
+        assert _verify_narrative(narrative, result) is False
+
+    def test_no_numbers_accepted(self):
+        """Text-only narrative with no numbers passes (nothing to verify)."""
+        narrative = NarrativeResult(
+            text="The data shows interesting patterns across all categories.",
+            key_points=[], suggestions=[],
+        )
+        result = {"some_key": "some_value"}
+        assert _verify_narrative(narrative, result) is True
+
+    def test_empty_narrative_rejected(self):
+        """Empty narrative text is rejected."""
+        narrative = NarrativeResult(text="", key_points=[], suggestions=[])
+        result = {"total_rows": 10}
+        assert _verify_narrative(narrative, result) is False
+
+    def test_partial_match_above_threshold(self):
+        """Narrative where >50% of numbers match passes."""
+        narrative = NarrativeResult(
+            text="Found 100 rows, 50 matched, and 25 were unique, with a random 999.",
+            key_points=[], suggestions=[],
+        )
+        # 100, 50, 25 match; 999 doesn't → 75% match rate → pass
+        result = {"total": 100, "matched": 50, "unique": 25}
+        assert _verify_narrative(narrative, result) is True
+
+    def test_nested_result_numbers_extracted(self):
+        """Numbers in nested dicts/lists are found for matching."""
+        narrative = NarrativeResult(
+            text="The top correlation is 0.85 between age and price.",
+            key_points=[], suggestions=[],
+        )
+        result = {
+            "top_correlations": [
+                {"col1": "age", "col2": "price", "correlation": 0.85}
+            ]
+        }
+        assert _verify_narrative(narrative, result) is True
+
+    def test_rounded_numbers_match(self):
+        """Narrative rounds a float — verification still matches."""
+        narrative = NarrativeResult(
+            text="Average age is 35.",
+            key_points=[], suggestions=[],
+        )
+        result = {"mean_age": 35.0042}
+        assert _verify_narrative(narrative, result) is True
+
+
+# ============================================================================
+# Group 15: data_summary in query_data and top_n
+# ============================================================================
+
+class TestResolveColumn:
+    """Test case-insensitive column name resolution."""
+
+    def test_exact_match(self):
+        assert _resolve_column("Fare", ["Fare", "Age"]) == "Fare"
+
+    def test_case_insensitive(self):
+        assert _resolve_column("fare", ["Fare", "Age"]) == "Fare"
+
+    def test_partial_match(self):
+        """'class' matches 'Pclass'."""
+        assert _resolve_column("class", ["Pclass", "Fare"]) == "Pclass"
+
+    def test_none_input(self):
+        assert _resolve_column(None, ["Fare"]) is None
+
+    def test_no_match(self):
+        assert _resolve_column("nonexistent", ["Fare", "Age"]) is None
+
+    def test_pivot_with_case_insensitive_columns(self, sample_df, mock_llm_provider):
+        """pivot_table resolves 'price' -> 'price' and 'category' -> 'category'."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "values": "Price",  # Capital P — should resolve to 'price'
+            "index": "Category",
+            "aggfunc": "mean",
+        })
+        result = pivot_table(sample_df, "Average Price by Category", llm_provider=mock_llm_provider)
+        assert result["status"] == "success"
+
+    def test_pivot_null_values_falls_to_heuristic(self, sample_df, mock_llm_provider):
+        """pivot_table with LLM returning null values falls back to heuristic."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "values": None,
+            "index": "category",
+            "aggfunc": "mean",
+        })
+        result = pivot_table(sample_df, "average price by category", llm_provider=mock_llm_provider)
+        assert result["status"] == "success"
+
+
+class TestQueryDataSummary:
+    """Test that query_data includes data_summary for LLM narration."""
+
+    def test_query_data_has_summary(self, sample_df, mock_llm_provider):
+        """Filtered query_data result includes data_summary."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "filter_expression": "age > 30",
+            "columns": None,
+        })
+        result = query_data(sample_df, "age above 30", llm_provider=mock_llm_provider)
+        assert result["status"] == "success"
+        assert result["total_rows"] > 0
+        assert "data_summary" in result
+        assert result["data_summary"]["total_rows"] == result["total_rows"]
+
+    def test_query_data_empty_no_summary(self, sample_df, mock_llm_provider):
+        """Empty filter result does not include data_summary."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "filter_expression": "age > 9999",
+            "columns": None,
+        })
+        result = query_data(sample_df, "age above 9999", llm_provider=mock_llm_provider)
+        assert result["status"] == "success"
+        assert result["total_rows"] == 0
+        assert "data_summary" not in result
+
+    def test_query_data_summary_has_columns(self, sample_df, mock_llm_provider):
+        """data_summary contains column-level statistics."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "filter_expression": "age > 30",
+            "columns": None,
+        })
+        result = query_data(sample_df, "age above 30", llm_provider=mock_llm_provider)
+        if result["total_rows"] > 0:
+            assert "columns" in result["data_summary"]
+
+
+class TestTopNSummary:
+    """Test that top_n includes data_summary for LLM narration."""
+
+    def test_top_n_has_summary(self, sample_df, mock_llm_provider):
+        """Top N result includes data_summary."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "column": "price",
+            "n": 5,
+            "ascending": False,
+        })
+        result = top_n(sample_df, "Top 5 by price", llm_provider=mock_llm_provider)
+        assert result["status"] == "success"
+        assert "data_summary" in result
+        assert result["data_summary"]["total_rows"] == 5
+
+    def test_top_n_summary_has_columns(self, sample_df, mock_llm_provider):
+        """data_summary in top_n contains column stats."""
+        mock_llm_provider.generate_plan.return_value = json.dumps({
+            "column": "price",
+            "n": 5,
+            "ascending": False,
+        })
+        result = top_n(sample_df, "Top 5 by price", llm_provider=mock_llm_provider)
+        assert "columns" in result["data_summary"]

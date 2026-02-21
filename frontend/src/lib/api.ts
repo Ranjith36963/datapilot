@@ -284,12 +284,21 @@ export async function getFingerprint(
   );
 }
 
+export interface AutopilotStepResult {
+  step: string;
+  status: string;
+  question?: string | null;
+  narrative?: string | null;
+  error?: string | null;
+}
+
 export interface AutopilotStatusResponse {
   status: "unavailable" | "planning" | "running" | "complete" | "failed";
   completed_steps?: number | null;
   total_steps?: number | null;
-  results?: { step: string; status: string }[] | null;
+  results?: AutopilotStepResult[] | null;
   summary?: string | null;
+  error?: string | null;
 }
 
 export async function getAutopilotStatus(

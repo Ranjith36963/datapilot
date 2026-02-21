@@ -158,6 +158,7 @@ const useSessionStore = create<SessionStore>()(
         filename: state.filename,
         columns: state.columns,
         shape: state.shape,
+        preview: state.preview.slice(0, 20),
         chartHistory: state.chartHistory.slice(-5),
       }),
     }

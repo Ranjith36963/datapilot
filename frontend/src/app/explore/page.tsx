@@ -20,6 +20,9 @@ import {
   Zap,
   CheckCircle2,
   XCircle,
+  Target,
+  Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { askQuestion, getHistory, type AskResponse, type ConversationEntry } from "@/lib/api";
 import { useValidatedSession, type ChatMessage } from "@/lib/store";
@@ -181,9 +184,11 @@ export default function ExplorePage() {
     completedSteps: apCompleted,
     totalSteps: apTotal,
     isLoading: apLoading,
+    error: apError,
   } = useAutopilot(sessionId, cachedAutopilotStatus, setAutopilotStatus);
 
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
+  const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -301,8 +306,8 @@ export default function ExplorePage() {
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
-      {/* Sidebar */}
-      <aside className="hidden lg:block w-64 border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto">
+      {/* Left Sidebar — dataset info + columns */}
+      <aside aria-label="Dataset information" className="hidden lg:block w-56 border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto shrink-0">
         <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
           Dataset
         </h3>
@@ -310,7 +315,7 @@ export default function ExplorePage() {
           {filename}
         </p>
 
-        {/* Domain Badge */}
+        {/* Domain Badge (compact — just badge + confidence) */}
         <div className="mb-4">
           {fingerprintLoading && <DomainBadgeSkeleton />}
           {fingerprintError && <DomainBadgeError error={fingerprintError} />}
@@ -320,7 +325,7 @@ export default function ExplorePage() {
         <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
           Columns ({columns.length})
         </h3>
-        <ul className="space-y-1 mb-6">
+        <ul className="space-y-1">
           {columns.map((col) => (
             <li
               key={col.name}
@@ -330,23 +335,6 @@ export default function ExplorePage() {
               <span className="text-slate-400 dark:text-slate-600 shrink-0 ml-1">
                 {col.semantic_type.slice(0, 3)}
               </span>
-            </li>
-          ))}
-        </ul>
-
-        <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-          Try asking
-        </h3>
-        <ul className="space-y-1">
-          {suggestedQuestions.map((q) => (
-            <li key={q}>
-              <button
-                onClick={() => handleSend(q)}
-                disabled={loading}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline text-left w-full"
-              >
-                {q}
-              </button>
             </li>
           ))}
         </ul>
@@ -416,40 +404,62 @@ export default function ExplorePage() {
                     {/* Step result cards */}
                     {apResults && apResults.length > 0 && (
                       <div className="space-y-2">
-                        {apResults.map((r, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                              r.status === "error"
-                                ? "bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900"
-                                : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900"
-                            }`}
-                          >
-                            {r.status === "error" ? (
-                              <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                            ) : (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                            )}
-                            <span
-                              className={`flex-1 ${
-                                r.status === "error"
-                                  ? "text-red-700 dark:text-red-300"
-                                  : "text-emerald-700 dark:text-emerald-300"
-                              }`}
-                            >
-                              {r.step.replace(/_/g, " ")}
-                            </span>
-                            <span
-                              className={`text-xs px-1.5 py-0.5 rounded ${
-                                r.status === "error"
-                                  ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
-                                  : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
-                              }`}
-                            >
-                              {r.status}
-                            </span>
-                          </div>
-                        ))}
+                        {apResults.map((r, idx) => {
+                          const isExpanded = expandedStep === idx;
+                          const hasDetail = !!(r.question || r.narrative || r.error);
+                          return (
+                            <div key={idx}>
+                              <button
+                                type="button"
+                                onClick={() => hasDetail && setExpandedStep(isExpanded ? null : idx)}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                                  hasDetail ? "cursor-pointer" : "cursor-default"
+                                } ${
+                                  r.status === "error"
+                                    ? "bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                                    : "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30"
+                                }`}
+                              >
+                                {r.status === "error" ? (
+                                  <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                ) : (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                )}
+                                <span
+                                  className={`flex-1 text-left ${
+                                    r.status === "error"
+                                      ? "text-red-700 dark:text-red-300"
+                                      : "text-emerald-700 dark:text-emerald-300"
+                                  }`}
+                                >
+                                  {r.question || r.step.replace(/_/g, " ")}
+                                </span>
+                                <span
+                                  className={`text-xs px-1.5 py-0.5 rounded ${
+                                    r.status === "error"
+                                      ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                                      : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                                  }`}
+                                >
+                                  {r.status}
+                                </span>
+                                {hasDetail && (
+                                  isExpanded
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                )}
+                              </button>
+                              {isExpanded && hasDetail && (
+                                <div className="mt-1 ml-6 px-3 py-2 text-xs text-slate-600 dark:text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  {r.narrative && <p className="whitespace-pre-wrap">{r.narrative}</p>}
+                                  {r.error && (
+                                    <p className="text-red-600 dark:text-red-400 mt-1">Error: {r.error}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {/* Pending skeleton cards for remaining steps while running */}
                         {apStatus === "running" &&
@@ -496,9 +506,16 @@ export default function ExplorePage() {
 
                     {/* Error fallback */}
                     {apStatus === "failed" && !apSummary && (
-                      <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        <span>Auto-pilot analysis failed. You can still ask questions manually below.</span>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                          <XCircle className="h-4 w-4 shrink-0" />
+                          <span>Auto-pilot analysis failed. You can still ask questions manually below.</span>
+                        </div>
+                        {apError && (
+                          <p className="text-xs text-red-500/70 dark:text-red-400/60 ml-6">
+                            {apError}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -673,6 +690,127 @@ export default function ExplorePage() {
           </form>
         </div>
       </div>
+
+      {/* Right Sidebar — details + try asking */}
+      <aside aria-label="Dataset details and suggestions" className="hidden xl:block w-72 border-l border-slate-200 dark:border-slate-800 p-4 overflow-y-auto shrink-0">
+        {/* Details section */}
+        {fingerprintLoading && (
+          <div className="space-y-3">
+            <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="h-3 w-3/4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+          </div>
+        )}
+
+        {fingerprintError && (
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Dataset details unavailable
+          </p>
+        )}
+
+        {fingerprint && (
+          <div className="space-y-4">
+            {/* Domain */}
+            <div>
+              <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
+                Domain
+              </h4>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">
+                {fingerprint.domain}
+              </p>
+            </div>
+
+            {/* Target */}
+            {fingerprint.target_column && (
+              <div className="flex items-start gap-2">
+                <Target className="h-3.5 w-3.5 text-violet-500 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Target: </span>
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400">
+                    {fingerprint.target_column}
+                  </span>
+                  {fingerprint.target_type && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">
+                      ({fingerprint.target_type})
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Key Observations */}
+            {fingerprint.key_observations?.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="h-3 w-3 text-blue-500" />
+                  <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Key Observations
+                  </h4>
+                </div>
+                <ul className="space-y-1.5">
+                  {fingerprint.key_observations.map((obs, i) => (
+                    <li
+                      key={i}
+                      className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-1.5"
+                    >
+                      <span className="text-blue-400 mt-0.5 shrink-0">&bull;</span>
+                      <span>{obs}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Data Quality */}
+            {fingerprint.data_quality_notes?.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <AlertTriangle className="h-3 w-3 text-amber-500" />
+                  <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Data Quality
+                  </h4>
+                </div>
+                <ul className="space-y-1.5">
+                  {fingerprint.data_quality_notes.map((note, i) => (
+                    <li
+                      key={i}
+                      className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-1.5"
+                    >
+                      <span className="text-amber-400 mt-0.5 shrink-0">&bull;</span>
+                      <span>{note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* Divider */}
+        {(fingerprint || fingerprintError) && (
+          <div className="border-t border-slate-200 dark:border-slate-800 my-4" />
+        )}
+
+        {/* Try Asking */}
+        <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+          Try asking
+        </h3>
+        <ul className="space-y-2">
+          {suggestedQuestions.map((q) => (
+            <li key={q}>
+              <button
+                onClick={() => handleSend(q)}
+                disabled={loading}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline text-left w-full leading-relaxed"
+              >
+                {q}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
     </div>
   );
 }

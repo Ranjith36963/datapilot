@@ -1,34 +1,48 @@
 """
-Router — keyword + LLM-powered question-to-skill mapping.
+Router — semantic embedding question-to-skill mapping.
 
-First attempts fast keyword matching (85-95% confidence).
-Falls back to LLM routing for ambiguous questions.
+Uses sentence-transformers (all-MiniLM-L6-v2) to match user questions
+to the best analytical skill by cosine similarity. Falls back to
+smart_query (LLM-generated pandas) when no skill matches, or
+profile_data when no LLM is available.
 
-Priority order:
-  1. Chart/visualization keywords (always checked first)
-  2. Standard keyword routing table
-  3. LLM provider (FailoverProvider handles multi-provider failover)
-  4. profile_data (last resort)
+Priority:
+  1. Semantic embedding match (local, fast, meaning-based)
+  2. smart_query (LLM-generated pandas — flexible fallback)
+  3. profile_data (last resort)
 """
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+import threading
+from typing import Any, Dict, List, Optional
 
 from ..llm.provider import LLMProvider, RoutingResult
-from ..llm.prompts import build_skill_catalog
 
 logger = logging.getLogger("datapilot.core.router")
 
 
 # ---------------------------------------------------------------------------
-# Chart priority routing (checked FIRST, before all other keywords)
+# Keyword overrides — high-signal phrases that unambiguously map to a skill.
+# Checked BEFORE semantic embedding so that statistical terms aren't confused
+# with generic comparison skills by the embedding model.
 # ---------------------------------------------------------------------------
 
-_CHART_PRIORITY_PATTERNS = [
-    r"\bchart\b", r"\bplot\b", r"\bvisuali[sz]", r"\bgraph\b",
-    r"\bdraw\b", r"\bshow me a\b",
+_KEYWORD_OVERRIDES = [
+    (re.compile(r"\bsignificant(?:ly)?\s+differ", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bp[- ]?value\b", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bt[- ]?test\b", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bchi[- ]?square\b", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\banova\b", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bstatistical(?:ly)?\s+significant\b", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bhypothesis\s+test", re.IGNORECASE), "run_hypothesis_test"),
+    (re.compile(r"\bmann[- ]?whitney\b", re.IGNORECASE), "run_hypothesis_test"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Chart type map — used by _enrich_parameters() for chart type extraction
+# ---------------------------------------------------------------------------
 
 _CHART_TYPE_MAP = {
     "histogram": "histogram",
@@ -51,86 +65,9 @@ _CHART_TYPE_MAP = {
 }
 
 
-def _try_chart_priority(question: str, data_context: Dict[str, Any]) -> Optional[RoutingResult]:
-    """Check if question is asking for a chart/visualization. Takes priority over all other keywords."""
-    q = question.lower().strip()
-
-    # Must match at least one chart priority pattern
-    matched = None
-    for pattern in _CHART_PRIORITY_PATTERNS:
-        m = re.search(pattern, q)
-        if m:
-            matched = m.group(0)
-            break
-
-    if matched is None:
-        return None
-
-    params: Dict[str, Any] = {}
-
-    # Extract chart type
-    for keyword, chart_type in _CHART_TYPE_MAP.items():
-        if re.search(r"\b" + re.escape(keyword) + r"\b", q):
-            params["chart_type"] = chart_type
-            break
-
-    # If "distribution" is mentioned, default to histogram
-    if "chart_type" not in params and re.search(r"\bdistribution\b", q):
-        params["chart_type"] = "histogram"
-
-    # Extract x, y from question matched against column names
-    col_names_lower = {c["name"].lower(): c["name"] for c in data_context.get("columns", [])}
-
-    # Pattern: "X vs Y", "X versus Y", "X against Y", "X and Y"
-    vs_match = re.search(r"(?:of|for)?\s*(\w[\w\s]*?)\s+(?:vs\.?|versus|against|and)\s+(\w[\w\s]*?)(?:\s|$|\?)", q)
-    if vs_match:
-        x_hint = vs_match.group(1).strip()
-        y_hint = vs_match.group(2).strip()
-        x_col = _match_column(x_hint, col_names_lower)
-        y_col = _match_column(y_hint, col_names_lower)
-        if x_col:
-            params["x"] = x_col
-        if y_col:
-            params["y"] = y_col
-
-    # Pattern: "distribution of X", "chart of X", "plot X"
-    if "x" not in params:
-        of_match = re.search(r"(?:distribution|chart|plot|graph|histogram|boxplot|box plot)\s+(?:of|for)\s+(\w[\w\s]*?)(?:\s*(?:vs|and|by|\?|$))", q)
-        if of_match:
-            hint = of_match.group(1).strip()
-            col = _match_column(hint, col_names_lower)
-            if col:
-                params["x"] = col
-
-    # Pattern: "by group_col" → hue
-    by_match = re.search(r"\bby\s+(\w[\w\s]*?)(?:\s*(?:\?|$))", q)
-    if by_match and "hue" not in params:
-        hint = by_match.group(1).strip()
-        col = _match_column(hint, col_names_lower)
-        if col:
-            params["hue"] = col
-
-    # Fall back: find column names mentioned anywhere in the question
-    if "x" not in params:
-        mentioned = _find_mentioned_columns(q, col_names_lower)
-        if len(mentioned) >= 2:
-            params["x"] = mentioned[0]
-            params["y"] = mentioned[1]
-        elif len(mentioned) == 1:
-            params["x"] = mentioned[0]
-
-    # Infer chart type from column data types if not explicitly specified
-    if "chart_type" not in params:
-        params["chart_type"] = _infer_chart_type(params, data_context)
-
-    return RoutingResult(
-        skill_name="create_chart",
-        parameters=params,
-        confidence=0.92,
-        reasoning=f"Matched: '{matched}' -> create_chart (priority)",
-        route_method="keyword",
-    )
-
+# ---------------------------------------------------------------------------
+# Column / chart helpers
+# ---------------------------------------------------------------------------
 
 def _get_col_semantic_type(col_name: str, data_context: Dict[str, Any]) -> str:
     """Look up the semantic type for a column from data_context (case-insensitive)."""
@@ -182,37 +119,69 @@ def _infer_chart_type(params: Dict[str, Any], data_context: Dict[str, Any]) -> s
 
 
 def _match_column(hint: str, col_names_lower: Dict[str, str]) -> Optional[str]:
-    """Match a text hint against known column names."""
+    """Scored column matching — avoids greedy substring ("age" != "passage").
+
+    Tiered: exact (100) > word boundary (80) > stem (60) > partial (40, guarded).
+    """
     hint = hint.lower().strip()
-    # Exact match
-    if hint in col_names_lower:
-        return col_names_lower[hint]
-    # Without spaces (e.g., "customer service calls" → "customer_service_calls")
-    hint_no_space = hint.replace(" ", "_")
-    if hint_no_space in col_names_lower:
-        return col_names_lower[hint_no_space]
-    # Partial match
+    if not hint:
+        return None
+
+    best_score = 0
+    best_col = None
+
     for col_lower, col_orig in col_names_lower.items():
-        if hint in col_lower or col_lower in hint:
-            return col_orig
-        # Try without underscores
-        col_clean = col_lower.replace("_", " ")
-        if hint in col_clean or col_clean in hint:
-            return col_orig
-    return None
+        score = _score_column(hint, col_lower)
+        if score > best_score:
+            best_score = score
+            best_col = col_orig
+
+    return best_col if best_score >= 40 else None
+
+
+def _score_column(hint: str, col: str) -> int:
+    """Score how well a hint matches a column name (0-100)."""
+    # Exact
+    if hint == col:
+        return 100
+    # Without spaces/underscores
+    hint_clean = hint.replace(" ", "_")
+    if hint_clean == col:
+        return 95
+    col_clean = col.replace("_", " ")
+    if hint == col_clean:
+        return 95
+    # Word boundary: "age" matches "passenger_age" but NOT "passage"
+    boundary_re = re.compile(r'(?:^|[_\s])' + re.escape(hint) + r'(?:$|[_\s])')
+    if boundary_re.search(col) or boundary_re.search(col_clean):
+        return 80
+    # Stem match
+    hint_stem = _stem_simple(hint)
+    col_stem = _stem_simple(col)
+    if hint_stem and col_stem and hint_stem == col_stem:
+        return 60
+    # Partial — guarded: min 4 chars, reject if column is 3x longer
+    if len(hint) >= 4 and hint in col:
+        if len(col) <= len(hint) * 3:
+            return 40
+    if len(col) >= 4 and col in hint:
+        if len(hint) <= len(col) * 3:
+            return 40
+    return 0
 
 
 def _find_mentioned_columns(question: str, col_names_lower: Dict[str, str]) -> List[str]:
-    """Find all column names mentioned in the question, in order of appearance."""
+    """Find all column names mentioned in the question, using word boundary matching."""
     found = []
     q = question.lower()
     for col_lower, col_orig in col_names_lower.items():
-        # Check both original and space-separated versions
-        if col_lower in q or col_lower.replace("_", " ") in q:
-            pos = q.find(col_lower)
-            if pos == -1:
-                pos = q.find(col_lower.replace("_", " "))
-            found.append((pos, col_orig))
+        # Word boundary regex to avoid "age" matching inside "passage"
+        pattern = re.compile(r'(?:^|[\s,;.!?()])' + re.escape(col_lower) + r'(?:$|[\s,;.!?()])')
+        col_space = col_lower.replace("_", " ")
+        pattern_space = re.compile(r'(?:^|[\s,;.!?()])' + re.escape(col_space) + r'(?:$|[\s,;.!?()])')
+        m = pattern.search(q) or pattern_space.search(q)
+        if m:
+            found.append((m.start(), col_orig))
     found.sort(key=lambda x: x[0])
     return [col for _, col in found]
 
@@ -252,395 +221,13 @@ def _extract_describe_columns(
 
 
 # ---------------------------------------------------------------------------
-# Semantic intent routing — no LLM needed, uses question intent + data context
-# ---------------------------------------------------------------------------
-
-# Intent categories: (intent_name, trigger_words, candidate_skills)
-# Each intent maps to a function that picks the best skill using data_context.
-_INTENT_TRIGGERS = {
-    "factor_analysis": [
-        "factor", "contribute", "affect", "impact", "influence", "cause",
-        "driv", "determine", "why", "lead to", "responsible", "reason",
-        "depend", "role", "important", "matter",
-    ],
-    "comparison": [
-        "compare", "difference", "differ", "versus", "vs", "between groups",
-        "significant", "more than", "less than",
-    ],
-    "relationship": [
-        "relationship", "correlat", "associat", "related", "connect",
-        "link between", "how does.*relate",
-    ],
-    "prediction": [
-        "predict", "forecast", "estimate", "what will", "going to",
-        "likely", "probability", "chance",
-    ],
-    "outlier_detection": [
-        "outlier", "anomal", "unusual", "abnormal", "extreme", "unexpected",
-    ],
-    "exploration": [
-        "tell me", "what can you", "insight", "pattern", "interesting",
-        "find", "discover", "explore", "analyze", "look at", "investigate",
-        "understand", "explain",
-    ],
-    "segmentation": [
-        "segment", "cluster", "group similar", "categorize", "classify into",
-        "types of", "kinds of",
-    ],
-    "trend_analysis": [
-        "trend", "change over", "increase", "decrease", "grow", "decline",
-        "over time", "time series",
-    ],
-}
-
-
-def _detect_intent(question: str) -> List[str]:
-    """Detect question intents from trigger words. Returns list of matched intents."""
-    q = question.lower()
-    matched = []
-    for intent, triggers in _INTENT_TRIGGERS.items():
-        for trigger in triggers:
-            if trigger in q:
-                matched.append(intent)
-                break
-    return matched
-
-
-def _try_semantic_route(
-    question: str,
-    data_context: Dict[str, Any],
-) -> Optional[RoutingResult]:
-    """Smart deterministic routing using question intent + data context.
-
-    No LLM needed. Picks the best skill by analyzing the question type
-    and matching it against available data (column types, target column).
-    """
-    intents = _detect_intent(question)
-    if not intents:
-        return None
-
-    columns = data_context.get("columns", [])
-    col_names_lower = {c["name"].lower(): c["name"] for c in columns}
-
-    # Find binary/categorical columns (potential targets)
-    binary_cols = [c["name"] for c in columns if c.get("n_unique") == 2 and c.get("semantic_type") in ("categorical", "boolean")]
-    categorical_cols = [c["name"] for c in columns if c.get("semantic_type") == "categorical" and c.get("n_unique", 999) <= 10]
-    numeric_cols = [c["name"] for c in columns if c.get("semantic_type") == "numeric"]
-    datetime_cols = [c["name"] for c in columns if c.get("semantic_type") == "datetime"]
-
-    # Check if question mentions a specific column
-    mentioned = _find_mentioned_columns(question.lower(), col_names_lower)
-
-    primary_intent = intents[0]
-    skill = None
-    params: Dict[str, Any] = {}
-    reasoning = ""
-
-    if primary_intent == "factor_analysis":
-        # "What factors affect X?" → classify (feature importance) if binary target, else correlations
-        target = _extract_target(question, data_context)
-        if target and target in [c["name"] for c in columns if c.get("n_unique", 999) <= 10]:
-            skill = "classify"
-            params["target"] = target
-            reasoning = f"Factor analysis with target='{target}' → classification + feature importance"
-        elif binary_cols:
-            skill = "classify"
-            params["target"] = binary_cols[0]
-            reasoning = f"Factor analysis → classify (auto-detected binary target='{binary_cols[0]}')"
-        else:
-            skill = "analyze_correlations"
-            reasoning = "Factor analysis → correlation analysis (no clear target column)"
-
-    elif primary_intent == "comparison":
-        skill = "run_hypothesis_test"
-        reasoning = "Comparison question → hypothesis testing"
-
-    elif primary_intent == "relationship":
-        skill = "analyze_correlations"
-        if mentioned and len(mentioned) >= 2:
-            reasoning = f"Relationship between '{mentioned[0]}' and '{mentioned[1]}' → correlations"
-        else:
-            reasoning = "Relationship analysis → correlations"
-
-    elif primary_intent == "prediction":
-        target = _extract_target(question, data_context)
-        if datetime_cols:
-            skill = "forecast"
-            reasoning = "Prediction with datetime data → time series forecast"
-        elif target and target in [c["name"] for c in columns if c.get("n_unique", 999) <= 10]:
-            skill = "classify"
-            params["target"] = target
-            reasoning = f"Prediction of categorical target='{target}' → classification"
-        elif target:
-            skill = "predict_numeric"
-            params["target"] = target
-            reasoning = f"Prediction of '{target}' → numeric regression"
-        elif binary_cols:
-            skill = "classify"
-            params["target"] = binary_cols[0]
-            reasoning = f"Prediction → classify (auto-detected target='{binary_cols[0]}')"
-        else:
-            skill = "predict_numeric"
-            reasoning = "Prediction → numeric regression"
-
-    elif primary_intent == "outlier_detection":
-        skill = "detect_outliers"
-        reasoning = "Outlier/anomaly detection question"
-
-    elif primary_intent == "segmentation":
-        skill = "find_clusters"
-        reasoning = "Segmentation/grouping question → clustering"
-
-    elif primary_intent == "trend_analysis":
-        if datetime_cols:
-            skill = "forecast"
-            reasoning = "Trend analysis with datetime data → time series"
-        else:
-            skill = "describe_data"
-            if mentioned:
-                params["columns"] = mentioned[:3]
-            reasoning = "Trend analysis (no datetime) → descriptive statistics"
-
-    elif primary_intent == "exploration":
-        # General exploration: pick based on data characteristics
-        if binary_cols:
-            skill = "classify"
-            params["target"] = binary_cols[0]
-            reasoning = f"Exploration → classify (auto-detected target='{binary_cols[0]}')"
-        elif len(numeric_cols) >= 2:
-            skill = "analyze_correlations"
-            reasoning = "Exploration → correlation analysis (multiple numeric columns)"
-        else:
-            return None  # Let profile_data handle truly generic exploration
-
-    if skill is None:
-        return None
-
-    result = RoutingResult(
-        skill_name=skill,
-        parameters=params,
-        confidence=0.70,
-        reasoning=f"Semantic: {reasoning}",
-        route_method="semantic",
-    )
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Keyword routing table
-# ---------------------------------------------------------------------------
-# Each entry: (patterns, skill_name, default_params, confidence, reasoning_template)
-
-_KEYWORD_ROUTES: List[Tuple[List[str], str, Dict[str, Any], float, str]] = [
-    # Data querying — filter/select rows
-    (
-        [r"\bfilter\b", r"\bwhere\b.*\b(=|>|<|is|equals|==)\b", r"\bshow\b.*\brows?\b",
-         r"\bselect\b.*\bwhere\b", r"\brows?\b.*\bwhere\b",
-         r"\bquery\b(?!.*\bsmart\b)"],
-        "query_data", {}, 0.88,
-        "Matched: '{matched}' -> query_data",
-    ),
-    # Pivot / aggregation by group
-    (
-        [r"\bpivot\b", r"\baverage\b.*\bby\b", r"\bmean\b.*\bby\b",
-         r"\bsum\b.*\bby\b", r"\baggregate\b.*\bby\b",
-         r"\bgroup\b.*\b(?:average|mean|sum|count)\b",
-         r"\btotal\b.*\bby\b"],
-        "pivot_table", {}, 0.88,
-        "Matched: '{matched}' -> pivot_table",
-    ),
-    # Value counts / frequency
-    (
-        [r"\bhow many\b.*\bper\b", r"\bfrequency\b", r"\bvalue.?counts?\b",
-         r"\bcount\b.*\bper\b", r"\bcount\b.*\beach\b",
-         r"\bnumber of\b.*\bper\b", r"\bnumber of\b.*\beach\b"],
-        "value_counts", {}, 0.90,
-        "Matched: '{matched}' -> value_counts",
-    ),
-    # Top N / ranking
-    (
-        [r"\btop\s+\d+\b", r"\bbottom\s+\d+\b", r"\bhighest\s+\d+\b",
-         r"\blowest\s+\d+\b", r"\branking?\b", r"\bbest\b.*\d+",
-         r"\bworst\b.*\d+", r"\blargest\b.*\bby\b", r"\bsmallest\b.*\bby\b"],
-        "top_n", {}, 0.90,
-        "Matched: '{matched}' -> top_n",
-    ),
-    # Cross-tabulation
-    (
-        [r"\bcross.?tab", r"\bcrosstab", r"\bcontingency\b",
-         r"\b(?:breakdown|split)\b.*\bby\b.*\band\b"],
-        "cross_tab", {}, 0.88,
-        "Matched: '{matched}' -> cross_tab",
-    ),
-    # Profiling / overview — only match explicit profiling requests
-    (
-        [r"\boverview\b", r"\bprofile\b", r"\bsummar(?:y|ize)\b", r"\bdescribe the data\b",
-         r"\btell me about\b.*\bdata\b", r"\bwhat.s in\b.*\bdata",
-         r"\bwhat do you see\b"],
-        "profile_data", {}, 0.85,
-        "Matched: '{matched}' -> profile_data",
-    ),
-    # Descriptive statistics (+ distribution keywords)
-    (
-        [r"\bdescri(?:be|ptive)\b.*\b(?:column|numeric|statistic|stats)\b",
-         r"\bbasic stat", r"\bmean.*median", r"\bsummary stat",
-         r"\bdistribution\b", r"\bspread\b", r"\brange\b"],
-        "describe_data", {}, 0.90,
-        "Matched: '{matched}' -> describe_data",
-    ),
-    # Correlation
-    (
-        [r"\bcorrelat", r"\brelationship between\b", r"\bhow.*\brelat",
-         r"\bassociation\b", r"\brelate\b"],
-        "analyze_correlations", {}, 0.92,
-        "Matched: '{matched}' -> analyze_correlations",
-    ),
-    # Outliers / anomalies
-    (
-        [r"\boutlier", r"\banomaly\b", r"\banomalies\b", r"\babnormal\b",
-         r"\bunusual\b.*\bvalue"],
-        "detect_outliers", {}, 0.90,
-        "Matched: '{matched}' -> detect_outliers",
-    ),
-    # Hypothesis testing — BEFORE classification (so "difference between X and churn"
-    # doesn't get swallowed by the churn -> classify pattern)
-    (
-        [r"\bhypothesis\b", r"\bstatistical test\b", r"\bt-?test\b",
-         r"\bchi.?square\b", r"\banova\b", r"\bp-?value\b",
-         r"\bsignifican(?:t|ce)\b.*\bdifference\b",
-         r"\bdifference between\b", r"\bcompare\b.*\bgroup",
-         r"\bsignificant\b.*\bbetween\b"],
-        "run_hypothesis_test", {}, 0.90,
-        "Matched: '{matched}' -> run_hypothesis_test",
-    ),
-    # Classification (must come before regression so "predict churn" doesn't
-    # match regression's "predict value")
-    (
-        [r"\bclassif(?:y|ication)\b", r"\bpredict\b(?!.*\b(?:number|value|price|amount|score)\b)",
-         r"\bpredict\b.*\bchurn\b", r"\bwhat\b.*\bpredict",
-         r"\bwhich features predict\b", r"\bfeature importance\b",
-         r"\bchurn\b.*\b(?:model|predict|analys|classify|rate|risk)\b",
-         r"\b(?:model|predict|analys|classify)\b.*\bchurn\b"],
-        "classify", {}, 0.90,
-        "Matched: '{matched}' -> classify",
-    ),
-    # Regression
-    (
-        [r"\bregress", r"\bpredict\b.*\b(?:number|value|price|amount|score)\b",
-         r"\bforecast\b.*\b(?:value|number)"],
-        "predict_numeric", {}, 0.88,
-        "Matched: '{matched}' -> predict_numeric",
-    ),
-    # Clustering
-    (
-        [r"\bcluster", r"\bsegment", r"\bgroup(?:ing)?\b.*\bsimilar\b"],
-        "find_clusters", {}, 0.90,
-        "Matched: '{matched}' -> find_clusters",
-    ),
-    # Time series
-    (
-        [r"\btime.?series\b", r"\bforecast\b", r"\btrend\b.*\bover time\b",
-         r"\bseasonal", r"\bover time\b", r"\bpredict future\b"],
-        "forecast", {}, 0.88,
-        "Matched: '{matched}' -> forecast",
-    ),
-    # Feature importance / selection
-    (
-        [r"\bfeature\b.*\bimportan", r"\bwhich.*\bfeature.*\bmatter\b",
-         r"\bvariable\b.*\bselect", r"\bselect\b.*\bfeature"],
-        "select_features", {}, 0.88,
-        "Matched: '{matched}' -> select_features",
-    ),
-    # Effect size
-    (
-        [r"\beffect.?size\b", r"\bcohen"],
-        "compute_effect_sizes", {}, 0.90,
-        "Matched: '{matched}' -> compute_effect_sizes",
-    ),
-    # Dimensionality reduction
-    (
-        [r"\bpca\b", r"\bdimensionality\b", r"\breduc.*dimension"],
-        "reduce_dimensions", {}, 0.90,
-        "Matched: '{matched}' -> reduce_dimensions",
-    ),
-    # Sentiment
-    (
-        [r"\bsentiment\b", r"\bopinion\b.*\banalys"],
-        "analyze_sentiment", {}, 0.92,
-        "Matched: '{matched}' -> analyze_sentiment",
-    ),
-    # Entities
-    (
-        [r"\bentit(?:y|ies)\b", r"\bnamed entity\b", r"\bner\b"],
-        "extract_entities", {}, 0.90,
-        "Matched: '{matched}' -> extract_entities",
-    ),
-    # Topics
-    (
-        [r"\btopic\b", r"\btheme"],
-        "discover_topics", {}, 0.88,
-        "Matched: '{matched}' -> discover_topics",
-    ),
-    # Data quality / validation
-    (
-        [r"\bdata quality\b", r"\bvalidat(?:e|ion)\b.*\bdata\b",
-         r"\bclean.*\bdata\b", r"\bmissing\b.*\bvalue"],
-        "validate_data", {}, 0.88,
-        "Matched: '{matched}' -> validate_data",
-    ),
-    # Chart / visualization (fallback — lower priority than the chart priority check)
-    (
-        [r"\bhistogram\b", r"\bscatter\b", r"\bbar\b.*\bchart\b"],
-        "create_chart", {}, 0.85,
-        "Matched: '{matched}' -> create_chart",
-    ),
-    # Survival analysis
-    (
-        [r"\bsurvival\b", r"\bkaplan", r"\bhazard\b"],
-        "survival_analysis", {}, 0.90,
-        "Matched: '{matched}' -> survival_analysis",
-    ),
-    # Threshold finder
-    (
-        [r"\bthreshold\b", r"\bcutoff\b", r"\boptimal.*\bsplit\b"],
-        "find_thresholds", {}, 0.88,
-        "Matched: '{matched}' -> find_thresholds",
-    ),
-    # Explainability
-    (
-        [r"\bexplain\b.*\bmodel\b", r"\bshap\b", r"\bfeature.*\bcontribut"],
-        "explain_model", {}, 0.88,
-        "Matched: '{matched}' -> explain_model",
-    ),
-]
-
-
-def _try_keyword_route(question: str) -> Optional[RoutingResult]:
-    """Attempt to route via keyword matching. Returns None if no match."""
-    q = question.lower().strip()
-    for patterns, skill, params, confidence, reasoning_tpl in _KEYWORD_ROUTES:
-        for pattern in patterns:
-            match = re.search(pattern, q)
-            if match:
-                matched_text = match.group(0)
-                return RoutingResult(
-                    skill_name=skill,
-                    parameters=dict(params),
-                    confidence=confidence,
-                    reasoning=reasoning_tpl.format(matched=matched_text),
-                    route_method="keyword",
-                )
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Parameter enrichment — extract missing required params from the question
 # ---------------------------------------------------------------------------
 
 # Skills that require a `target` column parameter
 _SKILLS_NEEDING_TARGET = {
     "classify", "predict_numeric", "select_features", "find_thresholds",
-    "compute_effect_sizes", "explain_model",
+    "calculate_effect_size", "explain_model",
 }
 
 # Regex patterns to extract target hints from questions
@@ -668,6 +255,18 @@ _TARGET_STOPWORDS = {
 }
 
 
+def _stem_simple(word: str) -> str:
+    """Strip common English suffixes for fuzzy column matching.
+
+    Handles: survival→surviv, survived→surviv, churning→churn, etc.
+    Only strips if the remaining stem is >= 3 chars to avoid over-stemming.
+    """
+    for suffix in ("ival", "ation", "tion", "ment", "ness", "ing", "ed", "er", "al", "ly"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)]
+    return word
+
+
 def _extract_target(
     question: str,
     data_context: Dict[str, Any],
@@ -685,10 +284,18 @@ def _extract_target(
             hint = match.group(1).lower()
             if hint in _TARGET_STOPWORDS:
                 continue
+            # Exact match
             if hint in col_names_lower:
                 return col_names_lower[hint]
+            # Substring match
             for col_lower, col_orig in col_names_lower.items():
                 if hint in col_lower or col_lower in hint:
+                    return col_orig
+            # Stem match: "survival" -> "surviv" matches "survived" -> "surviv"
+            hint_stem = _stem_simple(hint)
+            for col_lower, col_orig in col_names_lower.items():
+                col_stem = _stem_simple(col_lower)
+                if hint_stem == col_stem or hint_stem in col_stem or col_stem in hint_stem:
                     return col_orig
 
     # Strategy 2: Any word in the question matches a column name
@@ -709,14 +316,16 @@ def _extract_target(
         return matched_cols[0]
 
     # Strategy 3: Guess best target from data context
+    # Check both categorical AND binary numeric columns (e.g. Survived: int 0/1)
     binary_cols = []
     categorical_cols = []
     for c in columns:
-        if c["semantic_type"] == "categorical":
-            if c["n_unique"] == 2:
-                binary_cols.append(c["name"])
-            elif c["n_unique"] <= 10:
-                categorical_cols.append(c["name"])
+        n_unique = c.get("n_unique", 999)
+        sem_type = c["semantic_type"]
+        if n_unique == 2 and sem_type in ("categorical", "numeric", "boolean"):
+            binary_cols.append(c["name"])
+        elif sem_type == "categorical" and n_unique <= 10:
+            categorical_cols.append(c["name"])
 
     if binary_cols:
         logger.info(f"Auto-detected binary target: {binary_cols[0]}")
@@ -827,6 +436,79 @@ def _enrich_hypothesis_params(
     return result
 
 
+def _enrich_chart_params(
+    result: RoutingResult,
+    question: str,
+    data_context: Dict[str, Any],
+) -> RoutingResult:
+    """Extract chart type and column parameters for create_chart skill."""
+    if result.skill_name != "create_chart":
+        return result
+
+    q = question.lower()
+    col_names_lower = {c["name"].lower(): c["name"] for c in data_context.get("columns", [])}
+
+    # Extract chart type from question
+    if "chart_type" not in result.parameters:
+        for keyword, chart_type in _CHART_TYPE_MAP.items():
+            if re.search(r"\b" + re.escape(keyword) + r"\b", q):
+                result.parameters["chart_type"] = chart_type
+                break
+
+        # Check for "distribution" -> histogram
+        if "chart_type" not in result.parameters and "distribution" in q:
+            result.parameters["chart_type"] = "histogram"
+
+    # Extract x, y columns: "X vs Y", "X versus Y", "X against Y", "X and Y"
+    if "x" not in result.parameters:
+        vs_match = re.search(
+            r"(?:of|for)?\s*(\w[\w\s]*?)\s+(?:vs\.?|versus|against|and)\s+(\w[\w\s]*?)(?:\s|$|\?)", q
+        )
+        if vs_match:
+            x_hint = vs_match.group(1).strip()
+            y_hint = vs_match.group(2).strip()
+            x_col = _match_column(x_hint, col_names_lower)
+            y_col = _match_column(y_hint, col_names_lower)
+            if x_col:
+                result.parameters["x"] = x_col
+            if y_col:
+                result.parameters["y"] = y_col
+
+    # Pattern: "distribution of X", "chart of X", "plot X"
+    if "x" not in result.parameters:
+        of_match = re.search(
+            r"(?:distribution|chart|plot|graph|histogram|boxplot|box plot)\s+(?:of|for)\s+(\w[\w\s]*?)(?:\s*(?:vs|and|by|\?|$))", q
+        )
+        if of_match:
+            hint = of_match.group(1).strip()
+            col = _match_column(hint, col_names_lower)
+            if col:
+                result.parameters["x"] = col
+
+    # Pattern: "by group_col" -> hue
+    by_match = re.search(r"\bby\s+(\w[\w\s]*?)(?:\s*(?:\?|$))", q)
+    if by_match and "hue" not in result.parameters:
+        hint = by_match.group(1).strip()
+        col = _match_column(hint, col_names_lower)
+        if col:
+            result.parameters["hue"] = col
+
+    # Fallback: find column names mentioned anywhere in the question
+    if "x" not in result.parameters:
+        mentioned = _find_mentioned_columns(q, col_names_lower)
+        if len(mentioned) >= 2:
+            result.parameters["x"] = mentioned[0]
+            result.parameters["y"] = mentioned[1]
+        elif len(mentioned) == 1:
+            result.parameters["x"] = mentioned[0]
+
+    # Infer chart type from column data types if not explicitly specified
+    if "chart_type" not in result.parameters:
+        result.parameters["chart_type"] = _infer_chart_type(result.parameters, data_context)
+
+    return result
+
+
 def _enrich_parameters(
     result: RoutingResult,
     question: str,
@@ -852,9 +534,8 @@ def _enrich_parameters(
     # Hypothesis test params
     result = _enrich_hypothesis_params(result, question, data_context)
 
-    # Chart params (for chart routes that came through keyword table, not priority)
-    if result.skill_name == "create_chart" and "chart_type" not in result.parameters:
-        result.parameters["chart_type"] = _infer_chart_type(result.parameters, data_context)
+    # Chart params — full extraction (chart type, x, y, hue columns)
+    result = _enrich_chart_params(result, question, data_context)
 
     # describe_data column extraction
     if result.skill_name == "describe_data" and "columns" not in result.parameters:
@@ -913,108 +594,123 @@ def build_data_context(df) -> Dict[str, Any]:
 class Router:
     """Routes user questions to the best analysis skill.
 
-    Priority: chart keywords -> keyword table -> LLM (FailoverProvider) -> profile_data.
+    Uses semantic embeddings (sentence-transformers) as the primary routing
+    mechanism. Falls back to smart_query (LLM-generated pandas) when no
+    embedding match is found, or profile_data when no LLM is available.
+
+    Priority:
+      1. Semantic embedding match (local, fast, meaning-based)
+      2. smart_query (LLM-generated pandas — when provider is available)
+      3. profile_data (last resort)
     """
 
     def __init__(self, provider: LLMProvider):
         self.provider = provider
-        self._catalog: Optional[str] = None
-
-    @property
-    def skill_catalog(self) -> str:
-        if self._catalog is None:
-            self._catalog = build_skill_catalog()
-        return self._catalog
+        self._semantic_matcher = None  # lazy-loaded on first use
+        self._semantic_attempted = False  # avoid repeated import failures
+        self._semantic_lock = threading.Lock()  # prevent concurrent model loads
 
     def route(
         self,
         question: str,
         data_context: Dict[str, Any],
     ) -> RoutingResult:
-        """Route a question to the best skill."""
+        """Route a question to the best skill.
+
+        Semantic-first: embedding match is tried first, then smart_query
+        handles anything the embeddings don't catch.
+        """
         logger.info(f"Routing question: {question[:80]}...")
 
-        # 0. Chart priority — always check first
-        chart_result = _try_chart_priority(question, data_context)
-        if chart_result is not None:
-            logger.info(
-                f"Chart priority routed to 'create_chart' "
-                f"(params={chart_result.parameters})"
-            )
-            return chart_result
-
-        # 1. Standard keyword routing
-        keyword_result = _try_keyword_route(question)
-        if keyword_result is not None:
-            keyword_result = _enrich_parameters(keyword_result, question, data_context)
-            logger.info(
-                f"Keyword routed to '{keyword_result.skill_name}' "
-                f"(confidence={keyword_result.confidence:.2f}, "
-                f"params={keyword_result.parameters})"
-            )
-            return keyword_result
-
-        # 2. Try LLM provider (FailoverProvider handles multi-provider failover)
-        if self.provider is not None:
-            result = self._try_llm_route(self.provider, question, data_context)
-            if result is not None:
+        # 0. Keyword overrides — unambiguous statistical/analytical terms
+        for pattern, skill_name in _KEYWORD_OVERRIDES:
+            if pattern.search(question):
+                logger.info(f"Keyword override: '{question[:50]}...' -> {skill_name}")
+                result = RoutingResult(
+                    skill_name=skill_name,
+                    parameters={},
+                    confidence=0.90,
+                    reasoning=f"Keyword override matched: {pattern.pattern}",
+                    route_method="keyword_override",
+                )
                 result = _enrich_parameters(result, question, data_context)
                 return result
 
-        # 3. Semantic intent routing — no LLM needed, free + instant
-        semantic_result = _try_semantic_route(question, data_context)
-        if semantic_result is not None:
-            semantic_result = _enrich_parameters(semantic_result, question, data_context)
+        # 1. Semantic embedding match (primary)
+        result = self._try_semantic_embedding(question, data_context)
+        if result is not None:
+            result = _enrich_parameters(result, question, data_context)
             logger.info(
-                f"Semantic routed to '{semantic_result.skill_name}' "
-                f"(confidence={semantic_result.confidence:.2f}, "
-                f"params={semantic_result.parameters})"
+                f"Semantic embedding routed to '{result.skill_name}' "
+                f"(confidence={result.confidence:.2f}, "
+                f"params={result.parameters})"
             )
-            return semantic_result
+            return result
 
-        # 4. Last resort: profile_data
-        logger.warning("All routing failed, falling back to profile_data")
+        # 2. smart_query (LLM fallback)
+        if self.provider is not None:
+            logger.info("No embedding match — routing to smart_query")
+            return RoutingResult(
+                skill_name="smart_query",
+                parameters={},
+                confidence=0.85,
+                reasoning="LLM-generated pandas query",
+                route_method="smart_first",
+            )
+
+        # 3. profile_data (last resort)
+        logger.warning("No embedding match, no LLM — falling back to profile_data")
         return RoutingResult(
             skill_name="profile_data",
             parameters={},
-            confidence=0.3,
-            reasoning="Could not determine the best skill — showing data profile",
+            confidence=0.30,
+            reasoning="No embedding match, no LLM — showing data profile",
             route_method="fallback",
         )
 
-    def _try_llm_route(
+    def _try_semantic_embedding(
         self,
-        provider: LLMProvider,
         question: str,
         data_context: Dict[str, Any],
     ) -> Optional[RoutingResult]:
-        """Attempt LLM routing with a provider. Returns None on failure."""
-        try:
-            result = provider.route_question(
-                question=question,
-                data_context=data_context,
-                skill_catalog=self.skill_catalog,
-            )
-            if result is None:
-                logger.warning(f"{type(provider).__name__} returned None")
-                return None
-            if result.confidence <= 0.1 and result.skill_name == "profile_data":
-                logger.warning(
-                    f"{type(provider).__name__} returned fallback result"
-                )
-                return None
+        """Try semantic embedding match using sentence-transformers.
 
-            result.route_method = "llm"
-            reasoning_prefix = "AI selected: "
-            if not result.reasoning.startswith(reasoning_prefix):
-                result.reasoning = reasoning_prefix + result.reasoning
-
-            logger.info(
-                f"LLM routed to '{result.skill_name}' "
-                f"(confidence={result.confidence:.2f}) "
-                f"via {type(provider).__name__}"
-            )
-            return result
-        except Exception as e:
-            logger.warning(f"{type(provider).__name__} routing failed: {e}")
+        Lazy-loads the model on first call. Silently skips if
+        sentence-transformers is not installed.
+        """
+        if self._semantic_attempted and self._semantic_matcher is None:
             return None
+
+        if self._semantic_matcher is None:
+            with self._semantic_lock:
+                # Double-check after acquiring lock (another thread may have loaded it)
+                if self._semantic_matcher is not None:
+                    pass  # already loaded by another thread
+                elif self._semantic_attempted:
+                    return None  # another thread tried and failed
+                else:
+                    try:
+                        from .semantic_router import get_semantic_matcher
+                        self._semantic_matcher = get_semantic_matcher()
+                    except Exception as e:
+                        logger.info(f"Semantic embedding unavailable: {e}")
+                    finally:
+                        # Set flag AFTER load attempt completes (success or failure)
+                        self._semantic_attempted = True
+
+        if self._semantic_matcher is None:
+            return None
+
+        result = self._semantic_matcher.match(question, threshold=0.35)
+        if result is None:
+            return None
+
+        skill_name, score = result
+
+        return RoutingResult(
+            skill_name=skill_name,
+            parameters={},
+            confidence=round(min(score, 0.95), 2),
+            reasoning=f"Semantic embedding: '{question[:50]}...' -> {skill_name} (score={score:.3f})",
+            route_method="semantic_embedding",
+        )

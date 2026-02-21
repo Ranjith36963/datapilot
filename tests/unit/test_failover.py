@@ -155,3 +155,102 @@ class TestEdgeCases:
         assert result.text  # Groq's narrative
         mock_gemini.generate_narrative.assert_called_once()
         mock_groq.generate_narrative.assert_called_once()
+
+
+# ============================================================================
+# D3 method tests: understand_dataset, generate_plan, generate_summary
+# ============================================================================
+
+class TestD3UnderstandDataset:
+    """Test FailoverProvider.understand_dataset() failover behavior."""
+
+    def test_primary_succeeds(self, mock_groq, mock_gemini):
+        """Gemini (primary for understand) called first, returns result."""
+        mock_gemini.understand_dataset.return_value = {"domain": "telecom", "_provider_used": "gemini"}
+        mock_groq.understand_dataset.return_value = {"domain": "telecom_groq"}
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.understand_dataset("snapshot text")
+
+        assert result is not None
+        assert result["domain"] == "telecom"
+        mock_gemini.understand_dataset.assert_called_once()
+        mock_groq.understand_dataset.assert_not_called()
+
+    def test_failover_to_secondary(self, mock_groq, mock_gemini):
+        """Gemini fails → Groq called and succeeds."""
+        mock_gemini.understand_dataset.side_effect = Exception("Gemini down")
+        mock_groq.understand_dataset.return_value = {"domain": "telecom_groq"}
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.understand_dataset("snapshot text")
+
+        assert result is not None
+        assert result["domain"] == "telecom_groq"
+        mock_gemini.understand_dataset.assert_called_once()
+        mock_groq.understand_dataset.assert_called_once()
+
+    def test_both_fail_returns_none(self, mock_groq, mock_gemini):
+        """Both providers fail → returns None."""
+        mock_gemini.understand_dataset.side_effect = Exception("Gemini down")
+        mock_groq.understand_dataset.return_value = None
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.understand_dataset("snapshot text")
+
+        assert result is None
+
+
+class TestD3GeneratePlan:
+    """Test FailoverProvider.generate_plan() failover behavior."""
+
+    def test_primary_succeeds(self, mock_groq, mock_gemini):
+        """Gemini returns plan text → Groq not called."""
+        mock_gemini.generate_plan.return_value = '{"title": "Plan", "steps": []}'
+        mock_groq.generate_plan.return_value = '{"title": "Groq Plan", "steps": []}'
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.generate_plan("prompt text")
+
+        assert result is not None
+        assert "Plan" in result
+        mock_gemini.generate_plan.assert_called_once()
+        mock_groq.generate_plan.assert_not_called()
+
+    def test_failover(self, mock_groq, mock_gemini):
+        """Gemini fails → Groq returns plan."""
+        mock_gemini.generate_plan.side_effect = Exception("Gemini down")
+        mock_groq.generate_plan.return_value = '{"title": "Groq Plan", "steps": []}'
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.generate_plan("prompt text")
+
+        assert result is not None
+        assert "Groq" in result
+
+
+class TestD3GenerateSummary:
+    """Test FailoverProvider.generate_summary() failover behavior."""
+
+    def test_primary_succeeds(self, mock_groq, mock_gemini):
+        """Gemini returns summary → Groq not called."""
+        mock_gemini.generate_summary.return_value = "The dataset reveals clear churn patterns driven by tenure."
+        mock_groq.generate_summary.return_value = "Groq summary."
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.generate_summary("prompt text")
+
+        assert result is not None
+        assert "churn" in result.lower()
+        mock_gemini.generate_summary.assert_called_once()
+        mock_groq.generate_summary.assert_not_called()
+
+    def test_both_fail_returns_none(self, mock_groq, mock_gemini):
+        """Both providers fail → returns None."""
+        mock_gemini.generate_summary.side_effect = Exception("Gemini down")
+        mock_groq.generate_summary.return_value = None
+
+        fp = FailoverProvider(providers={"groq": mock_groq, "gemini": mock_gemini})
+        result = fp.generate_summary("prompt text")
+
+        assert result is None
