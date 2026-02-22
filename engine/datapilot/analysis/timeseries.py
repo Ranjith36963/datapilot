@@ -5,7 +5,7 @@ Uses statsmodels for decomposition and ARIMA, Prophet for forecasting,
 ruptures for change-point detection.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,6 @@ from scipy import stats as sp_stats
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.timeseries")
 
@@ -75,7 +74,7 @@ def analyze_time_series(
             direction = "flat"
 
         # Stationarity (ADF test)
-        stationarity: Dict[str, Any] = {}
+        stationarity: dict[str, Any] = {}
         try:
             from statsmodels.tsa.stattools import adfuller
             adf_result = adfuller(values.values, autolag="AIC")
@@ -88,7 +87,7 @@ def analyze_time_series(
             stationarity = {"is_stationary": None, "note": "statsmodels not available"}
 
         # Seasonality detection
-        seasonality: Dict[str, Any] = {"detected": False}
+        seasonality: dict[str, Any] = {"detected": False}
         try:
             from statsmodels.tsa.seasonal import seasonal_decompose
             freq_map = {"daily": 7, "weekly": 52, "monthly": 12, "quarterly": 4, "yearly": 1}
@@ -174,8 +173,8 @@ def forecast(
                 except ImportError:
                     chosen = "naive"
 
-        forecast_list: List[Dict[str, Any]] = []
-        metrics: Dict[str, Any] = {}
+        forecast_list: list[dict[str, Any]] = []
+        metrics: dict[str, Any] = {}
 
         if chosen == "prophet":
             try:
@@ -282,7 +281,7 @@ def detect_change_points(file_path: str, date_column: str, value_column: str) ->
         df = df.dropna(subset=[date_column, value_column]).sort_values(date_column)
         values = df[value_column].astype(float).values
 
-        change_points: List[Dict[str, Any]] = []
+        change_points: list[dict[str, Any]] = []
 
         try:
             import ruptures as rpt

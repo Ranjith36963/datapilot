@@ -5,16 +5,14 @@ Provides a complete overview: shape, types, nulls, distributions,
 correlations, quality score, warnings, and recommendations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns, get_categorical_columns
+from ..utils.helpers import get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.profiler")
 
@@ -68,7 +66,7 @@ def _semantic_type(series: pd.Series, col_name: str) -> str:
     return "categorical"
 
 
-def _column_profile(series: pd.Series, col_name: str) -> Dict[str, Any]:
+def _column_profile(series: pd.Series, col_name: str) -> dict[str, Any]:
     """Build a full profile dict for a single column."""
     n = len(series)
     missing_count = int(series.isna().sum())
@@ -77,7 +75,7 @@ def _column_profile(series: pd.Series, col_name: str) -> Dict[str, Any]:
     unique_pct = round(unique_count / n * 100, 2) if n > 0 else 0.0
     sem_type = _semantic_type(series, col_name)
 
-    profile: Dict[str, Any] = {
+    profile: dict[str, Any] = {
         "name": col_name,
         "dtype": str(series.dtype),
         "semantic_type": sem_type,
@@ -151,8 +149,8 @@ def profile_data(file_path: str) -> dict:
         quality_score = round(max(completeness - dup_penalty, 0), 1)
 
         # --- warnings ---
-        warnings: List[Dict[str, str]] = []
-        recommendations: List[str] = []
+        warnings: list[dict[str, str]] = []
+        recommendations: list[str] = []
 
         for cp in columns:
             name = cp["name"]
@@ -173,7 +171,7 @@ def profile_data(file_path: str) -> dict:
 
         # --- correlations ---
         num_cols = get_numeric_columns(df)
-        high_corrs: List[Dict[str, Any]] = []
+        high_corrs: list[dict[str, Any]] = []
         if len(num_cols) >= 2:
             try:
                 corr = df[num_cols].corr()
@@ -214,9 +212,9 @@ def detect_target_candidates(file_path: str) -> dict:
     try:
         df = load_data(file_path)
 
-        binary: List[Dict[str, Any]] = []
-        multiclass: List[Dict[str, Any]] = []
-        numeric: List[Dict[str, Any]] = []
+        binary: list[dict[str, Any]] = []
+        multiclass: list[dict[str, Any]] = []
+        numeric: list[dict[str, Any]] = []
 
         for col in df.columns:
             clean = df[col].dropna()

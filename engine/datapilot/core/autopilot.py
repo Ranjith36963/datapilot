@@ -9,13 +9,12 @@ D3: AI Dataset Understanding + Auto-Pilot
 
 import asyncio
 import json
-import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
-from ..utils.helpers import setup_logging
 from ..llm.prompts.base import build_skill_catalog, get_skill_names
+from ..utils.helpers import setup_logging
 
 logger = setup_logging("datapilot.autopilot")
 
@@ -77,7 +76,7 @@ async def generate_analysis_plan(
     understanding,
     available_skills: str,
     llm_provider,
-) -> Optional[AnalysisPlan]:
+) -> AnalysisPlan | None:
     """LLM generates a custom analysis plan based on dataset understanding.
 
     Args:
@@ -247,7 +246,7 @@ async def generate_summary(
     understanding,
     results: list,
     llm_provider,
-) -> Optional[str]:
+) -> str | None:
     """LLM synthesizes all auto-pilot results into a coherent summary.
 
     Args:

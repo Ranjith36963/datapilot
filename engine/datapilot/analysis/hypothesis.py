@@ -5,7 +5,6 @@ Tests: t-test, paired t-test, ANOVA, chi-square, Mann-Whitney, Kruskal,
 normality, Levene.
 """
 
-from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -14,7 +13,6 @@ from scipy import stats as sp_stats
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.hypothesis")
 
@@ -50,8 +48,8 @@ def t_test(
     df: pd.DataFrame,
     group_col: str,
     value_col: str,
-    group1: Optional[str] = None,
-    group2: Optional[str] = None,
+    group1: str | None = None,
+    group2: str | None = None,
 ) -> dict:
     """Independent samples t-test."""
     groups = df[group_col].dropna().unique()

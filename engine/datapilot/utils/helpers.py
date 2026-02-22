@@ -8,11 +8,10 @@ All other modules depend on this.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
-
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -32,14 +31,14 @@ def setup_logging(name: str = "datapilot") -> logging.Logger:
     return logger
 
 
-def log_execution(func_name: str, params: Optional[Dict] = None, result: Optional[Dict] = None) -> Dict:
+def log_execution(func_name: str, params: dict | None = None, result: dict | None = None) -> dict:
     """
     Create an execution log entry.
 
     Can be used as a simple logger factory when called with just func_name,
     or to produce a structured log dict when params/result are provided.
     """
-    entry: Dict[str, Any] = {
+    entry: dict[str, Any] = {
         "function": func_name,
         "timestamp": datetime.now().isoformat(),
     }
@@ -125,12 +124,12 @@ def save_data(df: pd.DataFrame, file_path: str) -> str:
 # DataFrame helpers
 # ---------------------------------------------------------------------------
 
-def get_numeric_columns(df: pd.DataFrame) -> List[str]:
+def get_numeric_columns(df: pd.DataFrame) -> list[str]:
     """Return list of numeric column names."""
     return df.select_dtypes(include=[np.number]).columns.tolist()
 
 
-def get_categorical_columns(df: pd.DataFrame, threshold: int = 50) -> List[str]:
+def get_categorical_columns(df: pd.DataFrame, threshold: int = 50) -> list[str]:
     """
     Return list of categorical column names.
 
@@ -144,6 +143,6 @@ def get_categorical_columns(df: pd.DataFrame, threshold: int = 50) -> List[str]:
     return cats
 
 
-def get_datetime_columns(df: pd.DataFrame) -> List[str]:
+def get_datetime_columns(df: pd.DataFrame) -> list[str]:
     """Return list of datetime column names."""
     return df.select_dtypes(include=["datetime", "datetimetz"]).columns.tolist()

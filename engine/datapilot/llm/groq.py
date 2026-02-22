@@ -7,7 +7,7 @@ Requires GROQ_API_KEY environment variable.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.config import Config
 from .provider import LLMProvider, NarrativeResult, RoutingResult, smart_fallback_suggestions
@@ -25,13 +25,13 @@ _NARRATION_EXCLUDED_KEYS = {
 }
 
 
-def _truncate_for_narration(result: Dict[str, Any]) -> str:
+def _truncate_for_narration(result: dict[str, Any]) -> str:
     """Truncate analysis result to keep narration prompts small.
 
     Strips excluded keys (base64 blobs, file paths), caps list values at
     MAX_NARRATION_ROWS items, and caps the final JSON at MAX_NARRATION_CHARS.
     """
-    truncated: Dict[str, Any] = {}
+    truncated: dict[str, Any] = {}
     for key, value in result.items():
         if key in _NARRATION_EXCLUDED_KEYS:
             continue
@@ -39,7 +39,7 @@ def _truncate_for_narration(result: Dict[str, Any]) -> str:
             truncated[key] = value[:MAX_NARRATION_ROWS]
             truncated[f"_{key}_truncated"] = f"{MAX_NARRATION_ROWS} of {len(value)} items shown"
         elif isinstance(value, dict):
-            inner: Dict[str, Any] = {}
+            inner: dict[str, Any] = {}
             for k, v in value.items():
                 if isinstance(v, list) and len(v) > MAX_NARRATION_ROWS:
                     inner[k] = v[:MAX_NARRATION_ROWS]
@@ -61,8 +61,8 @@ class GroqProvider(LLMProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ):
         self.api_key = api_key or Config.GROQ_API_KEY
         self.model = model or Config.GROQ_MODEL
@@ -91,7 +91,7 @@ class GroqProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
     ) -> RoutingResult:
         """Route a question using Groq."""
@@ -151,10 +151,10 @@ class GroqProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """Generate narrative using Groq."""
         client = self._get_client()
@@ -226,7 +226,7 @@ class GroqProvider(LLMProvider):
                 suggestions=[],
             )
 
-    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+    def generate_chart_insight(self, chart_summary: dict[str, Any]) -> str:
         """Generate a one-sentence insight from chart summary data."""
         client = self._get_client()
 
@@ -258,9 +258,9 @@ class GroqProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest 4-6 ranked charts using Groq."""
         client = self._get_client()
 
@@ -318,7 +318,7 @@ class GroqProvider(LLMProvider):
             if not isinstance(suggestions_raw, list):
                 suggestions_raw = [suggestions_raw]
 
-            suggestions: List[Dict[str, Any]] = []
+            suggestions: list[dict[str, Any]] = []
             for item in suggestions_raw:
                 # Clean up "null" strings → None
                 for key in ("x", "y", "hue"):
@@ -340,7 +340,7 @@ class GroqProvider(LLMProvider):
             logger.warning(f"Groq chart suggestion failed: {e}")
             return smart_fallback_suggestions(data_context)
 
-    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+    def fingerprint_dataset(self, prompt: str) -> dict[str, Any] | None:
         """Classify dataset domain using Groq (simple interface).
 
         Args:
@@ -385,7 +385,7 @@ class GroqProvider(LLMProvider):
             logger.warning(f"Groq fingerprint_dataset failed: {e}")
             return None
 
-    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+    def understand_dataset(self, snapshot: str) -> dict[str, Any] | None:
         """Analyze dataset snapshot and return structured understanding."""
         client = self._get_client()
         try:
@@ -416,7 +416,7 @@ class GroqProvider(LLMProvider):
             logger.warning(f"Groq understand_dataset failed: {e}")
             return None
 
-    def generate_plan(self, prompt: str) -> Optional[str]:
+    def generate_plan(self, prompt: str) -> str | None:
         """Generate an analysis plan. Returns raw LLM text (JSON string)."""
         client = self._get_client()
         try:
@@ -434,7 +434,7 @@ class GroqProvider(LLMProvider):
             logger.warning(f"Groq generate_plan failed: {e}")
             return None
 
-    def generate_summary(self, prompt: str) -> Optional[str]:
+    def generate_summary(self, prompt: str) -> str | None:
         """Generate a summary of analysis results."""
         client = self._get_client()
         try:

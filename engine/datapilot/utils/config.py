@@ -6,25 +6,24 @@ Provides centralized configuration with environment variable overrides.
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
 class Config:
     """DataPilot configuration."""
 
     # Paths
-    UPLOAD_PATH: Optional[str] = os.environ.get("DATAPILOT_UPLOAD_PATH")
+    UPLOAD_PATH: str | None = os.environ.get("DATAPILOT_UPLOAD_PATH")
     TEMP_DIR: str = os.environ.get("DATAPILOT_TEMP_DIR", "/tmp/datapilot")
 
     # LLM
     LLM_PROVIDER: str = os.environ.get("DATAPILOT_LLM_PROVIDER", "groq")
     OLLAMA_HOST: str = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     OLLAMA_MODEL: str = os.environ.get("OLLAMA_MODEL", "llama3.2")
-    ANTHROPIC_API_KEY: Optional[str] = os.environ.get("ANTHROPIC_API_KEY")
-    OPENAI_API_KEY: Optional[str] = os.environ.get("OPENAI_API_KEY")
-    GROQ_API_KEY: Optional[str] = os.environ.get("GROQ_API_KEY")
+    ANTHROPIC_API_KEY: str | None = os.environ.get("ANTHROPIC_API_KEY")
+    OPENAI_API_KEY: str | None = os.environ.get("OPENAI_API_KEY")
+    GROQ_API_KEY: str | None = os.environ.get("GROQ_API_KEY")
     GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    GEMINI_API_KEY: Optional[str] = os.environ.get("GEMINI_API_KEY")
+    GEMINI_API_KEY: str | None = os.environ.get("GEMINI_API_KEY")
     GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
     # Analysis defaults

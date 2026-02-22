@@ -4,7 +4,6 @@ Executive report template configuration.
 Defines the structure and sections for executive-level reports.
 """
 
-from typing import Any, Dict, List, Optional
 
 
 EXECUTIVE_TEMPLATE = {

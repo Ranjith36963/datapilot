@@ -5,15 +5,13 @@ Provides comprehensive validation: nulls, duplicates, outliers,
 type consistency, string format issues. Returns a score 0-100.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.validator")
 
@@ -24,7 +22,7 @@ logger = setup_logging("datapilot.validator")
 
 def check_nulls(df: pd.DataFrame) -> dict:
     """Detailed null analysis per column."""
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     for col in df.columns:
         n_null = int(df[col].isna().sum())
         records.append({
@@ -43,7 +41,7 @@ def check_nulls(df: pd.DataFrame) -> dict:
     }
 
 
-def check_duplicates(df: pd.DataFrame, subset: Optional[List[str]] = None) -> dict:
+def check_duplicates(df: pd.DataFrame, subset: list[str] | None = None) -> dict:
     """Find duplicate rows, optionally by subset of columns."""
     dup_mask = df.duplicated(subset=subset, keep=False)
     n_dup = int(dup_mask.sum())
@@ -59,7 +57,7 @@ def check_duplicates(df: pd.DataFrame, subset: Optional[List[str]] = None) -> di
 def check_outliers(df: pd.DataFrame, method: str = "iqr", threshold: float = 1.5) -> dict:
     """Flag statistical outliers in numeric columns."""
     num_cols = get_numeric_columns(df)
-    col_results: List[Dict[str, Any]] = []
+    col_results: list[dict[str, Any]] = []
     total_outliers = 0
 
     for col in num_cols:
@@ -105,7 +103,7 @@ def check_outliers(df: pd.DataFrame, method: str = "iqr", threshold: float = 1.5
 # Main validator
 # ---------------------------------------------------------------------------
 
-def validate_data(file_path: str, rules: Optional[Dict] = None) -> dict:
+def validate_data(file_path: str, rules: dict | None = None) -> dict:
     """
     Comprehensive data validation.
 
@@ -122,8 +120,8 @@ def validate_data(file_path: str, rules: Optional[Dict] = None) -> dict:
         df = load_data(file_path)
         logger.info(f"Validating {file_path}: {df.shape}")
 
-        checks: List[Dict[str, Any]] = []
-        recommendations: List[str] = []
+        checks: list[dict[str, Any]] = []
+        recommendations: list[str] = []
 
         # 1. Null checks
         null_info = check_nulls(df)
@@ -259,7 +257,7 @@ def validate_data(file_path: str, rules: Optional[Dict] = None) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def validate_and_upload(file_path: str, output_name: str = "validation.json", rules: Optional[Dict] = None) -> dict:
+def validate_and_upload(file_path: str, output_name: str = "validation.json", rules: dict | None = None) -> dict:
     """Convenience function: validate_data + upload."""
     result = validate_data(file_path, rules=rules)
     upload_result(result, output_name)

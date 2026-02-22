@@ -4,7 +4,6 @@ Detailed report template configuration.
 Defines the structure and sections for comprehensive technical reports.
 """
 
-from typing import Any, Dict, List, Optional
 
 
 DETAILED_TEMPLATE = {

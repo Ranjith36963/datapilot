@@ -6,7 +6,7 @@ Defines the interface that Ollama, Claude, and OpenAI providers implement.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -21,7 +21,7 @@ class RoutingResult:
       - "fallback"    — no match found, fell back to profile_data
     """
     skill_name: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     confidence: float
     reasoning: str
     route_method: str = "llm"
@@ -31,8 +31,8 @@ class RoutingResult:
 class NarrativeResult:
     """Result of generating a narrative from analysis output."""
     text: str
-    key_points: List[str]
-    suggestions: List[str]
+    key_points: list[str]
+    suggestions: list[str]
 
 
 class LLMProvider(ABC):
@@ -42,7 +42,7 @@ class LLMProvider(ABC):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
     ) -> RoutingResult:
         """
@@ -61,10 +61,10 @@ class LLMProvider(ABC):
     @abstractmethod
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """
         Generate a human-readable narrative from analysis results.
@@ -83,9 +83,9 @@ class LLMProvider(ABC):
     @abstractmethod
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Suggest chart types and parameters for the data.
 
@@ -96,7 +96,7 @@ class LLMProvider(ABC):
         """
         ...
 
-    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+    def generate_chart_insight(self, chart_summary: dict[str, Any]) -> str:
         """
         Generate a one-sentence insight from chart summary data.
 
@@ -107,7 +107,7 @@ class LLMProvider(ABC):
     def stream_response(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
     ) -> str:
         """
         Stream a response to a question. Default non-streaming implementation.
@@ -117,7 +117,7 @@ class LLMProvider(ABC):
         routing = self.route_question(question, data_context, "")
         return f"I would use the '{routing.skill_name}' skill to answer this."
 
-    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+    def fingerprint_dataset(self, prompt: str) -> dict[str, Any] | None:
         """
         Classify a dataset's business domain based on a formatted prompt.
 
@@ -142,7 +142,7 @@ class LLMProvider(ABC):
         """
         return None
 
-    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+    def understand_dataset(self, snapshot: str) -> dict[str, Any] | None:
         """
         Analyze a dataset snapshot and return structured understanding.
 
@@ -153,7 +153,7 @@ class LLMProvider(ABC):
         """
         return None
 
-    def generate_plan(self, prompt: str) -> Optional[str]:
+    def generate_plan(self, prompt: str) -> str | None:
         """
         Generate an analysis plan from a prompt.
 
@@ -162,7 +162,7 @@ class LLMProvider(ABC):
         """
         return None
 
-    def generate_summary(self, prompt: str) -> Optional[str]:
+    def generate_summary(self, prompt: str) -> str | None:
         """
         Generate a summary of analysis results.
 
@@ -172,7 +172,7 @@ class LLMProvider(ABC):
         return None
 
 
-def smart_fallback_suggestions(data_context: Dict[str, Any]) -> Dict[str, Any]:
+def smart_fallback_suggestions(data_context: dict[str, Any]) -> dict[str, Any]:
     """Build diverse, quality-aware fallback chart suggestions from column metadata.
 
     Uses n_unique, null_pct, and n_rows to pick analytically useful columns
@@ -182,9 +182,9 @@ def smart_fallback_suggestions(data_context: Dict[str, Any]) -> Dict[str, Any]:
     n_rows = data_context.get("n_rows", 0)
 
     # Classify columns, skip IDs (n_unique == n_rows) and high-null (>50%)
-    numeric: List[Dict[str, Any]] = []
-    categorical: List[Dict[str, Any]] = []
-    datetime_cols: List[Dict[str, Any]] = []
+    numeric: list[dict[str, Any]] = []
+    categorical: list[dict[str, Any]] = []
+    datetime_cols: list[dict[str, Any]] = []
 
     for c in cols:
         # Skip likely ID columns: integer with all unique values
@@ -210,7 +210,7 @@ def smart_fallback_suggestions(data_context: Dict[str, Any]) -> Dict[str, Any]:
     # Sort categorical by cardinality: prefer low-cardinality for hue/pie
     categorical.sort(key=lambda c: c.get("n_unique", 999))
 
-    suggestions: List[Dict[str, Any]] = []
+    suggestions: list[dict[str, Any]] = []
 
     # 1. Histogram of best numeric column
     if numeric:

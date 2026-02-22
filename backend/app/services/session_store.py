@@ -10,7 +10,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiosqlite
 
@@ -39,7 +39,7 @@ class SessionStore:
 
     def __init__(self, db_path: Path = DEFAULT_DB_PATH):
         self.db_path = db_path
-        self._db: Optional[aiosqlite.Connection] = None
+        self._db: aiosqlite.Connection | None = None
 
     async def init_db(self):
         """Initialize database connection and create tables."""
@@ -74,8 +74,8 @@ class SessionStore:
         session_id: str,
         filename: str,
         file_path: str,
-        columns: List[str],
-        shape: Dict[str, int],
+        columns: list[str],
+        shape: dict[str, int],
     ) -> None:
         """Insert a new session into the database."""
         if self._db is None:
@@ -102,7 +102,7 @@ class SessionStore:
         except Exception as e:
             logger.warning(f"Failed to persist session {session_id}: {e}")
 
-    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Retrieve a session by ID, updating last_accessed."""
         if self._db is None:
             return None
@@ -144,7 +144,7 @@ class SessionStore:
             return None
 
     async def update_history(
-        self, session_id: str, history: List[Dict]
+        self, session_id: str, history: list[dict]
     ) -> None:
         """Update the analysis history for a session."""
         if self._db is None:
@@ -272,7 +272,7 @@ class SessionStore:
             logger.warning(f"Failed to delete session {session_id}: {e}")
             return False
 
-    async def list_sessions(self) -> List[Dict[str, Any]]:
+    async def list_sessions(self) -> list[dict[str, Any]]:
         """List all sessions with summary info."""
         if self._db is None:
             return []

@@ -10,7 +10,7 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..llm.prompts import get_skill_function
 
@@ -29,11 +29,11 @@ class ExecutionResult:
         self,
         status: str,
         skill_name: str,
-        result: Optional[Dict[str, Any]] = None,
-        error: Optional[str] = None,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
         elapsed_seconds: float = 0.0,
-        code_snippet: Optional[str] = None,
-        columns_used: Optional[list] = None,
+        code_snippet: str | None = None,
+        columns_used: list | None = None,
     ):
         self.status = status
         self.skill_name = skill_name
@@ -43,7 +43,7 @@ class ExecutionResult:
         self.code_snippet = code_snippet
         self.columns_used = columns_used
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = {
             "status": self.status,
             "skill_name": self.skill_name,
@@ -67,9 +67,9 @@ class Executor:
         self,
         skill_name: str,
         df,
-        parameters: Optional[Dict[str, Any]] = None,
-        question: Optional[str] = None,
-        llm_provider: Optional[Any] = None,
+        parameters: dict[str, Any] | None = None,
+        question: str | None = None,
+        llm_provider: Any | None = None,
     ) -> ExecutionResult:
         """Execute a skill function against a DataFrame.
 
@@ -188,10 +188,10 @@ class Executor:
         self,
         func,
         df,
-        parameters: Dict[str, Any],
-        question: Optional[str] = None,
-        llm_provider: Optional[Any] = None,
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any],
+        question: str | None = None,
+        llm_provider: Any | None = None,
+    ) -> dict[str, Any]:
         """Build the keyword arguments for a skill function.
 
         Most skills take `df` or `file_path` as the first positional arg.
@@ -205,7 +205,7 @@ class Executor:
             return {"df": df, **parameters}
 
         param_names = list(sig.parameters.keys())
-        filtered: Dict[str, Any] = {}
+        filtered: dict[str, Any] = {}
 
         # First parameter is almost always `df`, `data`, or `file_path`
         if param_names:
@@ -254,7 +254,7 @@ class Executor:
         return str(tmp_path)
 
     @staticmethod
-    def _inject_chart_base64(result: Dict[str, Any]) -> Dict[str, Any]:
+    def _inject_chart_base64(result: dict[str, Any]) -> dict[str, Any]:
         """Read chart file and inject base64 into result dict."""
         import base64
 
@@ -273,7 +273,7 @@ class Executor:
     def _humanize_error(
         skill_name: str,
         error: Exception,
-        filtered: Dict[str, Any],
+        filtered: dict[str, Any],
     ) -> str:
         """Convert Python exceptions into human-readable error messages."""
         msg = str(error)
@@ -313,7 +313,7 @@ class Executor:
     @staticmethod
     def _build_code_snippet(
         skill_name: str,
-        filtered: Dict[str, Any],
+        filtered: dict[str, Any],
     ) -> str:
         """Generate a Python code snippet showing what was executed."""
         args = []
@@ -335,8 +335,8 @@ class Executor:
 
     @staticmethod
     def _extract_columns_used(
-        result: Dict[str, Any],
-        filtered: Dict[str, Any],
+        result: dict[str, Any],
+        filtered: dict[str, Any],
         df,
     ) -> list:
         """Extract which columns were involved in the analysis."""

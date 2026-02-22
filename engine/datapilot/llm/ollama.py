@@ -7,7 +7,7 @@ Default model: llama3.2. Uses structured prompts for function calling.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.config import Config
 from .provider import LLMProvider, NarrativeResult, RoutingResult
@@ -20,17 +20,17 @@ class OllamaProvider(LLMProvider):
 
     def __init__(
         self,
-        host: Optional[str] = None,
-        model: Optional[str] = None,
+        host: str | None = None,
+        model: str | None = None,
     ):
         self.host = (host or Config.OLLAMA_HOST).rstrip("/")
         self.model = model or Config.OLLAMA_MODEL
         self._session = None
 
-    def _request(self, prompt: str, system: Optional[str] = None) -> str:
+    def _request(self, prompt: str, system: str | None = None) -> str:
         """Send a request to the Ollama API and return the response text."""
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         url = f"{self.host}/api/generate"
         payload = {
@@ -63,7 +63,7 @@ class OllamaProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
     ) -> RoutingResult:
         """Route a question to the best skill using Ollama."""
@@ -113,10 +113,10 @@ class OllamaProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """Generate a human-readable narrative from analysis results."""
         system = (
@@ -164,9 +164,9 @@ class OllamaProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest a chart type based on data context."""
         columns_info = ", ".join(
             f"{c['name']} ({c.get('semantic_type', 'unknown')})"
@@ -193,8 +193,8 @@ class OllamaProvider(LLMProvider):
 
     def is_available(self) -> bool:
         """Check if Ollama server is reachable."""
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         try:
             req = urllib.request.Request(f"{self.host}/api/tags", method="GET")

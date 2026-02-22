@@ -5,17 +5,14 @@ Uses sklearn LDA/NMF with TF-IDF vectorization.
 Optionally uses gensim for coherence scoring.
 """
 
-from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.decomposition import LatentDirichletAllocation, NMF
+from sklearn.decomposition import NMF, LatentDirichletAllocation
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.topics")
 
@@ -84,9 +81,8 @@ def extract_topics(
         # Coherence score (simple approximation: average top-word co-occurrence)
         coherence = None
         try:
-            import gensim
-            from gensim.models.coherencemodel import CoherenceModel
             from gensim.corpora import Dictionary
+            from gensim.models.coherencemodel import CoherenceModel
             tokenized = [t.lower().split() for t in texts]
             dictionary = Dictionary(tokenized)
             topic_words = [[feature_names[i] for i in comp.argsort()[::-1][:10]] for comp in model.components_]
@@ -109,7 +105,7 @@ def extract_topics(
         return {"status": "error", "message": str(e)}
 
 
-def assign_topics(df: pd.DataFrame, text_column: str, model_path: Optional[str] = None) -> pd.DataFrame:
+def assign_topics(df: pd.DataFrame, text_column: str, model_path: str | None = None) -> pd.DataFrame:
     """Assign dominant topic to each document. Returns df with topic column."""
     texts = df[text_column].dropna().astype(str).tolist()
     vectorizer = CountVectorizer(max_features=5000, stop_words="english")

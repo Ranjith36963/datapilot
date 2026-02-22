@@ -7,12 +7,11 @@ when not available.
 """
 
 import os
-from typing import Dict
 
 from .helpers import setup_logging
 
 
-def upload_result(result: Dict, filename: str) -> None:
+def upload_result(result: dict, filename: str) -> None:
     """
     Upload a result dict using the configured upload library.
 

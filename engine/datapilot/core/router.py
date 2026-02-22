@@ -15,7 +15,7 @@ Priority:
 import logging
 import re
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..llm.provider import LLMProvider, RoutingResult
 
@@ -69,7 +69,7 @@ _CHART_TYPE_MAP = {
 # Column / chart helpers
 # ---------------------------------------------------------------------------
 
-def _get_col_semantic_type(col_name: str, data_context: Dict[str, Any]) -> str:
+def _get_col_semantic_type(col_name: str, data_context: dict[str, Any]) -> str:
     """Look up the semantic type for a column from data_context (case-insensitive)."""
     col_lower = col_name.lower()
     for c in data_context.get("columns", []):
@@ -78,7 +78,7 @@ def _get_col_semantic_type(col_name: str, data_context: Dict[str, Any]) -> str:
     return "text"
 
 
-def _get_col_nunique(col_name: str, data_context: Dict[str, Any]) -> int:
+def _get_col_nunique(col_name: str, data_context: dict[str, Any]) -> int:
     """Look up n_unique for a column from data_context (case-insensitive)."""
     col_lower = col_name.lower()
     for c in data_context.get("columns", []):
@@ -87,7 +87,7 @@ def _get_col_nunique(col_name: str, data_context: Dict[str, Any]) -> int:
     return 999
 
 
-def _infer_chart_type(params: Dict[str, Any], data_context: Dict[str, Any]) -> str:
+def _infer_chart_type(params: dict[str, Any], data_context: dict[str, Any]) -> str:
     """Infer the best chart type from column types and cardinality.
 
     Uses n_unique to detect low-cardinality numerics (treated as categorical
@@ -118,7 +118,7 @@ def _infer_chart_type(params: Dict[str, Any], data_context: Dict[str, Any]) -> s
         return "histogram"
 
 
-def _match_column(hint: str, col_names_lower: Dict[str, str]) -> Optional[str]:
+def _match_column(hint: str, col_names_lower: dict[str, str]) -> str | None:
     """Scored column matching — avoids greedy substring ("age" != "passage").
 
     Tiered: exact (100) > word boundary (80) > stem (60) > partial (40, guarded).
@@ -170,7 +170,7 @@ def _score_column(hint: str, col: str) -> int:
     return 0
 
 
-def _find_mentioned_columns(question: str, col_names_lower: Dict[str, str]) -> List[str]:
+def _find_mentioned_columns(question: str, col_names_lower: dict[str, str]) -> list[str]:
     """Find all column names mentioned in the question, using word boundary matching."""
     found = []
     q = question.lower()
@@ -196,8 +196,8 @@ _DESCRIBE_COL_PATTERNS = [
 
 def _extract_describe_columns(
     question: str,
-    data_context: Dict[str, Any],
-) -> Optional[List[str]]:
+    data_context: dict[str, Any],
+) -> list[str] | None:
     """Extract specific column names from a describe_data question."""
     q = question.lower().strip()
     col_names_lower = {c["name"].lower(): c["name"] for c in data_context.get("columns", [])}
@@ -269,8 +269,8 @@ def _stem_simple(word: str) -> str:
 
 def _extract_target(
     question: str,
-    data_context: Dict[str, Any],
-) -> Optional[str]:
+    data_context: dict[str, Any],
+) -> str | None:
     """Try to extract a target column name from the question."""
     q = question.lower().strip()
     columns = data_context.get("columns", [])
@@ -339,7 +339,7 @@ def _extract_target(
 
 def _enrich_forecast_params(
     result: RoutingResult,
-    data_context: Dict[str, Any],
+    data_context: dict[str, Any],
 ) -> RoutingResult:
     """Auto-detect date_column and value_column for forecast skill."""
     if result.skill_name != "forecast":
@@ -372,7 +372,7 @@ def _enrich_forecast_params(
 def _enrich_hypothesis_params(
     result: RoutingResult,
     question: str,
-    data_context: Dict[str, Any],
+    data_context: dict[str, Any],
 ) -> RoutingResult:
     """Extract test params from question for run_hypothesis_test."""
     if result.skill_name != "run_hypothesis_test":
@@ -439,7 +439,7 @@ def _enrich_hypothesis_params(
 def _enrich_chart_params(
     result: RoutingResult,
     question: str,
-    data_context: Dict[str, Any],
+    data_context: dict[str, Any],
 ) -> RoutingResult:
     """Extract chart type and column parameters for create_chart skill."""
     if result.skill_name != "create_chart":
@@ -512,7 +512,7 @@ def _enrich_chart_params(
 def _enrich_parameters(
     result: RoutingResult,
     question: str,
-    data_context: Dict[str, Any],
+    data_context: dict[str, Any],
 ) -> RoutingResult:
     """Enrich routing parameters for skills that need them."""
     # Target extraction for classification/regression/etc.
@@ -552,7 +552,7 @@ def _enrich_parameters(
 # Data context builder
 # ---------------------------------------------------------------------------
 
-def build_data_context(df) -> Dict[str, Any]:
+def build_data_context(df) -> dict[str, Any]:
     """Build a data context dict from a DataFrame for LLM routing."""
     import pandas as pd
 
@@ -613,7 +613,7 @@ class Router:
     def route(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
     ) -> RoutingResult:
         """Route a question to the best skill.
 
@@ -671,8 +671,8 @@ class Router:
     def _try_semantic_embedding(
         self,
         question: str,
-        data_context: Dict[str, Any],
-    ) -> Optional[RoutingResult]:
+        data_context: dict[str, Any],
+    ) -> RoutingResult | None:
         """Try semantic embedding match using sentence-transformers.
 
         Lazy-loads the model on first call. Silently skips if

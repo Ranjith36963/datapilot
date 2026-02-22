@@ -5,7 +5,6 @@ Charts API — create and suggest charts.
 import base64
 import logging
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
 

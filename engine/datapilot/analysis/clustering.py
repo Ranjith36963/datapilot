@@ -5,18 +5,16 @@ Algorithms: K-Means, DBSCAN, HDBSCAN, Hierarchical, GMM.
 Includes optimal-k detection via elbow and silhouette methods.
 """
 
-from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
+from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
+from sklearn.preprocessing import StandardScaler
 
-from ..utils.helpers import load_data, save_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.clustering")
 
@@ -25,7 +23,7 @@ logger = setup_logging("datapilot.clustering")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _prepare_features(df: pd.DataFrame, features: Optional[List[str]] = None):
+def _prepare_features(df: pd.DataFrame, features: list[str] | None = None):
     """Prepare and scale numeric features for clustering."""
     cols = features or get_numeric_columns(df)
     X = df[cols].copy()
@@ -36,7 +34,7 @@ def _prepare_features(df: pd.DataFrame, features: Optional[List[str]] = None):
     return X_scaled, cols, scaler
 
 
-def _profile_clusters(df: pd.DataFrame, labels: np.ndarray, features: List[str]) -> list:
+def _profile_clusters(df: pd.DataFrame, labels: np.ndarray, features: list[str]) -> list:
     """Build a profile for each cluster: size, centroid, distinguishing features."""
     df_work = df.copy()
     df_work["__cluster__"] = labels
@@ -93,9 +91,9 @@ def _profile_clusters(df: pd.DataFrame, labels: np.ndarray, features: List[str])
 
 def find_clusters(
     file_path: str,
-    n_clusters: Union[int, str] = "auto",
+    n_clusters: int | str = "auto",
     algorithm: str = "kmeans",
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
 ) -> dict:
     """
     Cluster data into groups.
@@ -184,7 +182,7 @@ def find_clusters(
 def optimal_clusters(
     file_path: str,
     max_k: int = 10,
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
 ) -> dict:
     """
     Find optimal number of clusters using elbow and silhouette methods.

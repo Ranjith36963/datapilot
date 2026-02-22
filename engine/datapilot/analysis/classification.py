@@ -7,22 +7,26 @@ Optuna for hyperparameter tuning.
 """
 
 import time
-from typing import Any, Dict, List, Optional
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, log_loss, confusion_matrix, classification_report,
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    log_loss,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns, get_categorical_columns
+from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.classification")
 
@@ -64,7 +68,7 @@ def _get_model(algorithm: str, random_state: int = 42):
         raise ValueError(f"Unknown algorithm: {algorithm}")
 
 
-def _prepare_data(df: pd.DataFrame, target: str, features: Optional[List[str]] = None):
+def _prepare_data(df: pd.DataFrame, target: str, features: list[str] | None = None):
     """Prepare X, y — impute, encode categoricals, scale numerics."""
     if features:
         cols = [c for c in features if c in df.columns and c != target]
@@ -78,7 +82,7 @@ def _prepare_data(df: pd.DataFrame, target: str, features: Optional[List[str]] =
     X = X.dropna(axis=1, how="all")
 
     # Encode object columns
-    label_encoders: Dict[str, LabelEncoder] = {}
+    label_encoders: dict[str, LabelEncoder] = {}
     for col in X.select_dtypes(include=["object", "category"]).columns:
         le = LabelEncoder()
         X[col] = X[col].fillna("__MISSING__")
@@ -106,11 +110,11 @@ def _prepare_data(df: pd.DataFrame, target: str, features: Optional[List[str]] =
 def classify(
     file_path: str,
     target: str,
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
     algorithm: str = "auto",
     tune: bool = False,
     cv_folds: int = 5,
-    model_params: Optional[Dict] = None,
+    model_params: dict | None = None,
 ) -> dict:
     """
     Universal classifier for ANY binary/multiclass target.
@@ -242,7 +246,7 @@ def classify(
         return {"status": "error", "message": str(e)}
 
 
-def auto_classify(file_path: str, target: str, features: Optional[List[str]] = None) -> dict:
+def auto_classify(file_path: str, target: str, features: list[str] | None = None) -> dict:
     """Try multiple algorithms, return comparison and best."""
     try:
         df = load_data(file_path)

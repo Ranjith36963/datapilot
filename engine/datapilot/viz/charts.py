@@ -4,18 +4,16 @@ Charts — create any type of chart.
 Uses matplotlib/seaborn for static charts, plotly for interactive HTML.
 """
 
-import io
 import base64
+import io
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns, get_categorical_columns
+from ..utils.helpers import get_categorical_columns, get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.charts")
 
@@ -23,16 +21,16 @@ logger = setup_logging("datapilot.charts")
 def _compute_chart_summary(
     df: pd.DataFrame,
     chart_type: str,
-    x: Optional[str] = None,
-    y: Optional[str] = None,
-    hue: Optional[str] = None,
-) -> Dict[str, Any]:
+    x: str | None = None,
+    y: str | None = None,
+    hue: str | None = None,
+) -> dict[str, Any]:
     """Compute a small summary of the data actually plotted, for narration.
 
     Returns a dict with aggregation type and key data points so the LLM
     can narrate real numbers instead of hallucinating.
     """
-    summary: Dict[str, Any] = {"x_column": x, "y_column": y, "chart_type": chart_type}
+    summary: dict[str, Any] = {"x_column": x, "y_column": y, "chart_type": chart_type}
     try:
         if chart_type in ("bar", "barh") and x and y:
             if not pd.api.types.is_numeric_dtype(df[y]):
@@ -140,10 +138,10 @@ def _save_fig(fig, file_path: str, chart_name: str) -> tuple:
 def create_chart(
     file_path: str,
     chart_type: str,
-    x: Optional[str] = None,
-    y: Optional[str] = None,
-    hue: Optional[str] = None,
-    title: Optional[str] = None,
+    x: str | None = None,
+    y: str | None = None,
+    hue: str | None = None,
+    title: str | None = None,
     **kwargs,
 ) -> dict:
     """
@@ -316,7 +314,7 @@ def create_chart(
         return {"status": "error", "message": str(e)}
 
 
-def auto_chart(file_path: str, x: str, y: Optional[str] = None) -> dict:
+def auto_chart(file_path: str, x: str, y: str | None = None) -> dict:
     """Automatically pick best chart type based on data types."""
     try:
         df = load_data(file_path)
@@ -340,12 +338,11 @@ def auto_chart(file_path: str, x: str, y: Optional[str] = None) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def create_dashboard(file_path: str, charts: Optional[List[Dict]] = None) -> dict:
+def create_dashboard(file_path: str, charts: list[dict] | None = None) -> dict:
     """Create multiple charts in a grid layout."""
     try:
         import matplotlib
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
 
         if not charts:
             # Auto dashboard

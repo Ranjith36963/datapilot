@@ -5,12 +5,17 @@ Tier 1: In-memory dict for fast access (no DB hit on hot path)
 Tier 2: SQLite via SessionStore for durability across restarts
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datapilot import Analyst
 
 logger = logging.getLogger("datapilot.backend.analyst_service")
 
@@ -49,7 +54,7 @@ class SessionManager:
     """
 
     def __init__(self):
-        self._sessions: Dict[str, Any] = {}  # session_id -> Analyst (hot cache)
+        self._sessions: dict[str, Any] = {}  # session_id -> Analyst (hot cache)
         self._store = None  # SessionStore, set during app startup
 
     def set_store(self, store):
@@ -60,8 +65,8 @@ class SessionManager:
         self,
         session_id: str,
         file_path: str,
-        llm: Optional[str] = None,
-    ) -> "Analyst":
+        llm: str | None = None,
+    ) -> Analyst:
         """Create a new Analyst session.
 
         Args:
@@ -82,11 +87,11 @@ class SessionManager:
         )
         return analyst
 
-    def get_session(self, session_id: str) -> Optional["Analyst"]:
+    def get_session(self, session_id: str) -> Analyst | None:
         """Get an existing Analyst session (in-memory only)."""
         return self._sessions.get(session_id)
 
-    async def get_or_restore_session(self, session_id: str) -> Optional["Analyst"]:
+    async def get_or_restore_session(self, session_id: str) -> Analyst | None:
         """Get a session from cache, or restore from SQLite on cache miss."""
         # Fast path: in-memory hit
         analyst = self._sessions.get(session_id)
@@ -97,7 +102,7 @@ class SessionManager:
             return await self._restore_from_db(session_id)
         return None
 
-    async def _restore_from_db(self, session_id: str) -> Optional["Analyst"]:
+    async def _restore_from_db(self, session_id: str) -> Analyst | None:
         """Restore an Analyst from SQLite (cold start path)."""
         session_data = await self._store.get_session(session_id)
         if not session_data:
@@ -213,7 +218,7 @@ class SessionManager:
             return True
         return False
 
-    def list_sessions(self) -> List[Dict[str, Any]]:
+    def list_sessions(self) -> list[dict[str, Any]]:
         """List all active in-memory sessions."""
         sessions = []
         for sid, analyst in self._sessions.items():

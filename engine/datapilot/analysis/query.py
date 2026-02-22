@@ -12,7 +12,6 @@ import logging
 import re
 import threading
 import time as _time
-from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -123,7 +122,7 @@ def _extract_params_via_llm(
     skill_name: str,
     param_schema: dict,
     df_columns: list,
-) -> Optional[dict]:
+) -> dict | None:
     """Extract skill parameters from natural language via LLM.
 
     Returns parsed dict or None if LLM fails / returns invalid JSON.
@@ -155,7 +154,7 @@ def _extract_params_via_llm(
 # Backtick helper for AST validation
 # ---------------------------------------------------------------------------
 
-def _resolve_column(hint: str, df_columns: list) -> Optional[str]:
+def _resolve_column(hint: str, df_columns: list) -> str | None:
     """Scored column name resolution — avoids greedy substring matches.
 
     Tiered scoring: exact (100) > word boundary (80) > stem (60) > partial (40).
@@ -274,9 +273,7 @@ def query_data(df: pd.DataFrame, question: str, llm_provider=None) -> dict:
             columns = params.get("columns")
         else:
             # Heuristic fallback: multiple pattern matching
-            q_lower = question.lower()
             cols = list(df.columns)
-            col_map = {c.lower(): c for c in cols}
 
             # Pattern 1: "where COL = VAL" / "where COL is VAL"
             match = re.search(
@@ -357,7 +354,7 @@ def query_data(df: pd.DataFrame, question: str, llm_provider=None) -> dict:
                     if isinstance(node, ast.Call):
                         return {"status": "error", "message": "Function calls are not allowed in filter expressions"}
             except SyntaxError:
-                return {"status": "error", "message": f"Invalid filter expression syntax"}
+                return {"status": "error", "message": "Invalid filter expression syntax"}
 
             try:
                 filtered_df = df.query(filter_expression)
@@ -709,7 +706,7 @@ def _validate_code(code: str) -> tuple:
     return True, "OK"
 
 
-def _extract_column_refs(code: str) -> List[str]:
+def _extract_column_refs(code: str) -> list[str]:
     """Walk AST to extract df['col'] and df["col"] string references."""
     refs = []
     try:

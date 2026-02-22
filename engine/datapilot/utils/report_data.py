@@ -5,16 +5,15 @@ Structures any analysis result into headline, key metrics, findings,
 recommendations, and supporting data.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .serializer import safe_json_serialize
 from .helpers import setup_logging
-
+from .serializer import safe_json_serialize
 
 logger = setup_logging("datapilot.report_data")
 
 
-def format_for_narrative(results: dict, context: Optional[str] = None) -> dict:
+def format_for_narrative(results: dict, context: str | None = None) -> dict:
     """
     Structure any analysis result for narrative generation.
 
@@ -89,7 +88,7 @@ def create_detailed_findings_data(results: dict) -> dict:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _generate_headline(results: dict, context: Optional[str] = None) -> str:
+def _generate_headline(results: dict, context: str | None = None) -> str:
     """Generate a one-sentence summary."""
     if context:
         return context
@@ -123,9 +122,9 @@ def _generate_headline(results: dict, context: Optional[str] = None) -> str:
     return "Analysis complete"
 
 
-def _extract_metrics(results: dict) -> List[Dict[str, Any]]:
+def _extract_metrics(results: dict) -> list[dict[str, Any]]:
     """Pull out key metrics from results."""
-    metrics: List[Dict[str, Any]] = []
+    metrics: list[dict[str, Any]] = []
 
     m = results.get("metrics", {})
     for key in ["accuracy", "precision", "recall", "f1", "auc_roc", "r2", "rmse", "mae"]:
@@ -153,9 +152,9 @@ def _extract_metrics(results: dict) -> List[Dict[str, Any]]:
     return metrics
 
 
-def _extract_findings(results: dict) -> List[Dict[str, Any]]:
+def _extract_findings(results: dict) -> list[dict[str, Any]]:
     """Pull out key findings."""
-    findings: List[Dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
 
     for w in results.get("warnings", []):
         findings.append({
@@ -188,9 +187,9 @@ def _extract_findings(results: dict) -> List[Dict[str, Any]]:
     return findings
 
 
-def _extract_recommendations(results: dict) -> List[Dict[str, Any]]:
+def _extract_recommendations(results: dict) -> list[dict[str, Any]]:
     """Pull out recommendations."""
-    recs: List[Dict[str, Any]] = []
+    recs: list[dict[str, Any]] = []
 
     for r in results.get("recommendations", []):
         if isinstance(r, str):
@@ -210,7 +209,7 @@ def _extract_recommendations(results: dict) -> List[Dict[str, Any]]:
     return recs
 
 
-def _extract_viz_paths(results: dict) -> List[str]:
+def _extract_viz_paths(results: dict) -> list[str]:
     """Find any chart/plot paths in results."""
     paths = []
     for key in ["chart_path", "chart_html_path", "output_path",

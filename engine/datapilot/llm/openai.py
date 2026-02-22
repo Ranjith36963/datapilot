@@ -7,7 +7,7 @@ Requires OPENAI_API_KEY environment variable.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.config import Config
 from .provider import LLMProvider, NarrativeResult, RoutingResult
@@ -20,7 +20,7 @@ class OpenAIProvider(LLMProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gpt-4o-mini",
     ):
         self.api_key = api_key or Config.OPENAI_API_KEY
@@ -47,7 +47,7 @@ class OpenAIProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
     ) -> RoutingResult:
         """Route a question using OpenAI with function_calling."""
@@ -107,10 +107,10 @@ class OpenAIProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """Generate narrative using OpenAI."""
         client = self._get_client()
@@ -160,9 +160,9 @@ class OpenAIProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest a chart using OpenAI."""
         client = self._get_client()
 

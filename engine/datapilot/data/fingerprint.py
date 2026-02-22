@@ -6,9 +6,7 @@ No keyword dicts, no 3-layer detection — LLM or nothing.
 """
 
 import json
-import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -177,7 +175,7 @@ def build_data_snapshot(df: pd.DataFrame, filename: str, profile: dict = None) -
 # understand_dataset
 # ---------------------------------------------------------------------------
 
-def _try_understand(snapshot: str, provider) -> Optional[DatasetUnderstanding]:
+def _try_understand(snapshot: str, provider) -> DatasetUnderstanding | None:
     """Attempt to get understanding from a single provider."""
     try:
         response = provider.understand_dataset(snapshot)
@@ -230,7 +228,7 @@ def understand_dataset(
     profile: dict,
     llm_provider,
     fallback_provider=None,
-) -> Optional[DatasetUnderstanding]:
+) -> DatasetUnderstanding | None:
     """LLM reads the data snapshot and returns structured understanding.
 
     Two-layer failover: primary → fallback. No deterministic fallback.

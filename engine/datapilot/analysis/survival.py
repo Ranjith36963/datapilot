@@ -4,7 +4,7 @@ Survival analysis — model time-to-event (when will customer churn?).
 Uses lifelines for Kaplan-Meier curves and Cox Proportional Hazards.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,6 @@ from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
 
-
 logger = setup_logging("datapilot.survival")
 
 
@@ -21,7 +20,7 @@ def survival_analysis(
     file_path: str,
     duration_column: str,
     event_column: str,
-    group_column: Optional[str] = None,
+    group_column: str | None = None,
 ) -> dict:
     """
     Kaplan-Meier survival analysis.
@@ -80,7 +79,7 @@ def survival_analysis(
                 pass
 
         # Group comparison
-        group_comparison: Dict[str, Any] = {}
+        group_comparison: dict[str, Any] = {}
         if group_column and group_column in df.columns:
             groups = df[group_column].dropna().unique()
             group_info = []
@@ -132,7 +131,7 @@ def cox_regression(
     file_path: str,
     duration_column: str,
     event_column: str,
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
 ) -> dict:
     """
     Cox Proportional Hazards regression.

@@ -4,15 +4,14 @@ Feature engineering — create new features to improve ML performance.
 Includes: date feature extraction, interaction terms, binning, encoding.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from ..utils.helpers import load_data, save_data, setup_logging, get_numeric_columns, get_categorical_columns
+from ..utils.helpers import get_numeric_columns, load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.engineering")
 
@@ -102,7 +101,7 @@ def encode_categorical(
 # Auto feature engineering
 # ---------------------------------------------------------------------------
 
-def engineer_features(file_path: str, operations: Optional[List[str]] = None) -> dict:
+def engineer_features(file_path: str, operations: list[str] | None = None) -> dict:
     """
     Auto-generate useful features.
 
@@ -117,7 +116,7 @@ def engineer_features(file_path: str, operations: Optional[List[str]] = None) ->
         df = load_data(file_path)
         logger.info(f"Engineering features for {file_path}: {df.shape}")
         original_cols = set(df.columns)
-        features_created: List[Dict[str, Any]] = []
+        features_created: list[dict[str, Any]] = []
 
         ops = operations or ["date", "interaction", "binning"]
 

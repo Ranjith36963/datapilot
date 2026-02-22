@@ -7,14 +7,11 @@ sklearn TF-IDF for keyword extraction.
 
 import re
 from collections import Counter
-from typing import Any, Dict, List, Optional
-
-import pandas as pd
+from typing import Any
 
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.text_stats")
 
@@ -35,12 +32,12 @@ _STOPWORDS = {
 }
 
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     """Simple word tokenizer."""
     return re.findall(r"\b[a-zA-Z]+\b", text.lower())
 
 
-def _sentences(text: str) -> List[str]:
+def _sentences(text: str) -> list[str]:
     """Split text into sentences."""
     return [s.strip() for s in re.split(r"[.!?]+", text) if s.strip()]
 
@@ -58,7 +55,7 @@ def analyze_text(text: str) -> dict:
         avg_sent_len = round(word_count / max(sent_count, 1), 2)
 
         # Readability
-        readability: Dict[str, Any] = {}
+        readability: dict[str, Any] = {}
         try:
             import textstat
             fre = textstat.flesch_reading_ease(text)
@@ -118,7 +115,7 @@ def batch_text_stats(file_path: str, text_column: str) -> dict:
 
         word_counts = []
         char_counts = []
-        all_words: List[str] = []
+        all_words: list[str] = []
 
         for text in texts:
             words = _tokenize(text)

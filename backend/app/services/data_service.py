@@ -7,7 +7,6 @@ import os
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("datapilot.backend.data_service")
 
@@ -25,7 +24,7 @@ MAX_FILE_SIZE = 100 * 1024 * 1024
 class DataService:
     """Handles file uploads and temporary storage."""
 
-    def __init__(self, upload_dir: Optional[Path] = None):
+    def __init__(self, upload_dir: Path | None = None):
         self.upload_dir = upload_dir or UPLOAD_DIR
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -33,8 +32,8 @@ class DataService:
         self,
         filename: str,
         content: bytes,
-        session_id: Optional[str] = None,
-    ) -> Tuple[str, Path]:
+        session_id: str | None = None,
+    ) -> tuple[str, Path]:
         """Save uploaded file to disk.
 
         Args:
@@ -76,7 +75,7 @@ class DataService:
         logger.info(f"Saved upload: {file_path} ({len(content)} bytes)")
         return session_id, file_path
 
-    def get_file_path(self, session_id: str) -> Optional[Path]:
+    def get_file_path(self, session_id: str) -> Path | None:
         """Get the uploaded file path for a session."""
         session_dir = self.upload_dir / session_id
         if not session_dir.exists():

@@ -5,16 +5,14 @@ Methods: tree-based importance, RFE, mutual information, chi-squared,
 f_classif, lasso, SHAP.
 """
 
-from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns
+from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.selection")
 
@@ -23,7 +21,7 @@ logger = setup_logging("datapilot.selection")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _prepare_Xy(df: pd.DataFrame, target: str, features: Optional[List[str]] = None):
+def _prepare_Xy(df: pd.DataFrame, target: str, features: list[str] | None = None):
     """Prepare X, y: encode categoricals, fill nulls."""
     cols = features if features else [c for c in df.columns if c != target]
     cols = [c for c in cols if c in df.columns and c != target]
@@ -47,8 +45,8 @@ def _prepare_Xy(df: pd.DataFrame, target: str, features: Optional[List[str]] = N
 
 def rfe_selection(df: pd.DataFrame, target: str, n_features: int = 10) -> list:
     """Recursive Feature Elimination using Random Forest."""
-    from sklearn.feature_selection import RFE
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.feature_selection import RFE
 
     X, y = _prepare_Xy(df, target)
     n_features = min(n_features, X.shape[1])
@@ -113,7 +111,7 @@ def select_features(
     file_path: str,
     target: str,
     method: str = "auto",
-    n_features: Optional[int] = None,
+    n_features: int | None = None,
 ) -> dict:
     """
     Feature selection.

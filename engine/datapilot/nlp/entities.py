@@ -6,14 +6,13 @@ Uses spaCy for NER. Falls back to regex patterns if spaCy unavailable.
 
 import re
 from collections import Counter
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
 from ..utils.helpers import load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.entities")
 
@@ -40,7 +39,7 @@ def _get_nlp():
     return _NLP
 
 
-def _spacy_ner(text: str) -> List[Dict[str, Any]]:
+def _spacy_ner(text: str) -> list[dict[str, Any]]:
     """Extract entities using spaCy."""
     nlp = _get_nlp()
     if nlp is None:
@@ -63,7 +62,7 @@ _PHONE_RE = re.compile(r"[\+]?[\d\s\-().]{7,20}")
 _PCT_RE = re.compile(r"\b\d+\.?\d*\s*%")
 
 
-def _regex_ner(text: str) -> List[Dict[str, Any]]:
+def _regex_ner(text: str) -> list[dict[str, Any]]:
     """Fallback regex-based entity extraction."""
     entities = []
     for m in _DATE_RE.finditer(text):
@@ -88,7 +87,7 @@ def extract_entities(text: str) -> dict:
         if not entities:
             entities = _regex_ner(text)
 
-        counts: Dict[str, int] = Counter(e["type"] for e in entities)
+        counts: dict[str, int] = Counter(e["type"] for e in entities)
 
         return {
             "text": text[:100],
@@ -110,7 +109,7 @@ def batch_extract_entities(file_path: str, text_column: str) -> dict:
         texts = df[text_column].dropna().astype(str)
         logger.info(f"Batch NER on {len(texts)} texts")
 
-        all_entities: List[Dict] = []
+        all_entities: list[dict] = []
         for text in texts:
             ents = _spacy_ner(text)
             if not ents:
@@ -120,7 +119,7 @@ def batch_extract_entities(file_path: str, text_column: str) -> dict:
         total = len(all_entities)
 
         # Summary by type
-        type_counter: Dict[str, Counter] = {}
+        type_counter: dict[str, Counter] = {}
         for ent in all_entities:
             t = ent["type"]
             if t not in type_counter:
@@ -140,7 +139,6 @@ def batch_extract_entities(file_path: str, text_column: str) -> dict:
         out_path = str(Path(file_path).parent / "entities_results.csv")
         df_out = df.copy()
         ent_col = []
-        idx = 0
         for i, row in df.iterrows():
             if pd.notna(row[text_column]):
                 ents = _spacy_ner(str(row[text_column])) or _regex_ner(str(row[text_column]))

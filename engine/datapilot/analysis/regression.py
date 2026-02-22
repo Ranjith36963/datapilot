@@ -6,22 +6,23 @@ LightGBM, SVR. Auto mode tries multiple.
 """
 
 import time
-from typing import Any, Dict, List, Optional
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-from sklearn.model_selection import train_test_split, cross_val_score, KFold
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import (
-    r2_score, mean_squared_error, mean_absolute_error, explained_variance_score,
-)
 from scipy import stats as sp_stats
+from sklearn.metrics import (
+    explained_variance_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+)
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns
+from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.regression")
 
@@ -59,7 +60,7 @@ def _get_model(algorithm: str, random_state: int = 42):
         raise ValueError(f"Unknown algorithm: {algorithm}")
 
 
-def _prepare_data(df: pd.DataFrame, target: str, features: Optional[List[str]] = None):
+def _prepare_data(df: pd.DataFrame, target: str, features: list[str] | None = None):
     cols = features if features else [c for c in df.columns if c != target]
     cols = [c for c in cols if c in df.columns and c != target]
     X = df[cols].copy()
@@ -82,10 +83,10 @@ def _prepare_data(df: pd.DataFrame, target: str, features: Optional[List[str]] =
 def predict_numeric(
     file_path: str,
     target: str,
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
     algorithm: str = "auto",
     tune: bool = False,
-    model_params: Optional[Dict] = None,
+    model_params: dict | None = None,
 ) -> dict:
     """
     Universal regressor for ANY numeric target.
@@ -213,7 +214,7 @@ def predict_numeric(
         return {"status": "error", "message": str(e)}
 
 
-def auto_regress(file_path: str, target: str, features: Optional[List[str]] = None) -> dict:
+def auto_regress(file_path: str, target: str, features: list[str] | None = None) -> dict:
     """Try all algorithms, return comparison."""
     try:
         df = load_data(file_path)

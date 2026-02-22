@@ -7,15 +7,13 @@ email, phone, url.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.schema")
 
@@ -62,9 +60,7 @@ def _infer_semantic_type(series: pd.Series, col_name: str) -> tuple:
     clean = series.dropna()
     n_total = len(clean)
     n_unique = clean.nunique()
-    patterns: List[str] = []
-    transforms: List[str] = []
-    confidence = 0.9  # default
+    patterns: list[str] = []
 
     if n_total == 0:
         return "unknown", 0.0, [], ["Drop column — entirely null"]
@@ -139,7 +135,7 @@ def infer_schema(file_path: str) -> dict:
         df = load_data(file_path)
         logger.info(f"Inferring schema for {file_path}: {df.shape}")
 
-        columns: List[Dict[str, Any]] = []
+        columns: list[dict[str, Any]] = []
         for col in df.columns:
             sem_type, conf, patterns, transforms = _infer_semantic_type(df[col], col)
             columns.append({
@@ -164,7 +160,7 @@ def detect_datetime_columns(df: pd.DataFrame) -> list:
 
     Accepts a DataFrame (not file_path) for composability.
     """
-    candidates: List[str] = []
+    candidates: list[str] = []
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             candidates.append(col)

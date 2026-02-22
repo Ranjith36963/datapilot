@@ -4,19 +4,17 @@ DOCX export — generate Word document reports from analysis results.
 Uses python-docx. All text is configurable via parameters.
 """
 
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from datetime import datetime
-
-import pandas as pd
+from pathlib import Path
+from typing import Any
 
 
 def _add_page_number_footer(doc, brand_name: str) -> None:
     """Add page number fields to the document footer using XML field codes."""
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
-    from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
 
     section = doc.sections[0]
     footer = section.footer
@@ -69,13 +67,13 @@ def _add_page_number_footer(doc, brand_name: str) -> None:
 
 
 def export_to_docx(
-    analysis_results: Dict[str, Any],
+    analysis_results: dict[str, Any],
     output_path: str,
     title: str = "Data Analysis Report",
     subtitle: str = "Comprehensive Analysis",
     brand_name: str = "DataPilot",
-    visualisation_paths: Optional[Dict[str, Path]] = None,
-    metrics: Optional[List[Dict[str, str]]] = None,
+    visualisation_paths: dict[str, Path] | None = None,
+    metrics: list[dict[str, str]] | None = None,
 ) -> str:
     """
     Export analysis results to Word document format.
@@ -93,9 +91,9 @@ def export_to_docx(
         The output file path.
     """
     from docx import Document
-    from docx.shared import Inches, Pt
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches
 
     p = Path(output_path)
     p.parent.mkdir(parents=True, exist_ok=True)

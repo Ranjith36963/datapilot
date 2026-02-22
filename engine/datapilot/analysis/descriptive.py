@@ -5,17 +5,15 @@ Provides numeric summaries (mean, median, skew, kurtosis, normality),
 categorical summaries (mode, entropy, value counts), and group comparisons.
 """
 
-import math
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns, get_categorical_columns
+from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.descriptive")
 
@@ -92,7 +90,7 @@ def describe_categorical(df: pd.DataFrame, column: str) -> dict:
 # Public API
 # ---------------------------------------------------------------------------
 
-def describe_data(file_path: str, columns: Optional[List[str]] = None) -> dict:
+def describe_data(file_path: str, columns: list[str] | None = None) -> dict:
     """
     Comprehensive descriptive statistics for all (or selected) columns.
 
@@ -138,13 +136,13 @@ def compare_groups(file_path: str, group_column: str, value_column: str) -> dict
             return {"status": "error", "message": f"Column not found: {group_column} or {value_column}"}
 
         groups = df.groupby(group_column)[value_column]
-        comparison: List[Dict[str, Any]] = []
+        comparison: list[dict[str, Any]] = []
 
         overall_mean = float(df[value_column].mean()) if pd.api.types.is_numeric_dtype(df[value_column]) else None
 
         for name, grp in groups:
             clean = grp.dropna()
-            entry: Dict[str, Any] = {"group": str(name), "count": int(len(clean))}
+            entry: dict[str, Any] = {"group": str(name), "count": int(len(clean))}
             if pd.api.types.is_numeric_dtype(clean):
                 entry.update({
                     "mean": float(clean.mean()),

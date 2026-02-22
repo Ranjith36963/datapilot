@@ -4,14 +4,12 @@ Sentiment analysis — detect positive/negative/neutral in text.
 Uses VADER (best for social media/reviews) and TextBlob (general purpose).
 """
 
-from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
 from ..utils.helpers import load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.sentiment")
 

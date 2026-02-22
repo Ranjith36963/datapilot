@@ -4,11 +4,10 @@ Intent detector — classify user intent (complaint, inquiry, feedback, etc.).
 Uses sklearn TF-IDF + classifier for labeled data, keyword heuristics for unlabeled.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
-import pandas as pd
 import joblib
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
@@ -17,7 +16,6 @@ from sklearn.pipeline import Pipeline
 from ..utils.helpers import load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.intent")
 
@@ -40,10 +38,10 @@ _INTENT_KEYWORDS = {
 }
 
 
-def _heuristic_intent(text: str) -> Dict[str, Any]:
+def _heuristic_intent(text: str) -> dict[str, Any]:
     """Keyword-based intent detection."""
     text_lower = text.lower()
-    scores: Dict[str, int] = {}
+    scores: dict[str, int] = {}
     for intent, keywords in _INTENT_KEYWORDS.items():
         scores[intent] = sum(1 for kw in keywords if kw in text_lower)
 
@@ -64,7 +62,7 @@ def _heuristic_intent(text: str) -> Dict[str, Any]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def detect_intent(text: str, intents: Optional[List[str]] = None) -> dict:
+def detect_intent(text: str, intents: list[str] | None = None) -> dict:
     """Classify a single text into an intent category."""
     try:
         return _heuristic_intent(text)
@@ -116,7 +114,7 @@ def train_intent_classifier(file_path: str, text_column: str, intent_column: str
 def batch_classify_intent(
     file_path: str,
     text_column: str,
-    model_path: Optional[str] = None,
+    model_path: str | None = None,
 ) -> dict:
     """Classify intents for an entire column."""
     try:

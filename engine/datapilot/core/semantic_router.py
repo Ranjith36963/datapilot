@@ -9,7 +9,7 @@ Model: all-MiniLM-L6-v2 (90MB, loads in ~2s, runs 100% locally).
 """
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger("datapilot.core.semantic_router")
 
@@ -276,7 +276,7 @@ class SemanticSkillMatcher:
         self,
         question: str,
         threshold: float = 0.35,
-    ) -> Optional[Tuple[str, float]]:
+    ) -> tuple[str, float] | None:
         """Match a question to the best skill by cosine similarity.
 
         Returns (skill_name, score) if score >= threshold, else None.
@@ -299,7 +299,7 @@ class SemanticSkillMatcher:
         return None
 
 
-def get_semantic_matcher() -> Optional[SemanticSkillMatcher]:
+def get_semantic_matcher() -> SemanticSkillMatcher | None:
     """Get the singleton SemanticSkillMatcher, or None if unavailable."""
     try:
         return SemanticSkillMatcher()

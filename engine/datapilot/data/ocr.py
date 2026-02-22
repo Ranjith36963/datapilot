@@ -4,14 +4,11 @@ OCR — extract text from images/scanned documents.
 Uses pytesseract + Pillow. Gracefully handles missing tesseract binary.
 """
 
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from ..utils.helpers import setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.ocr")
 
@@ -19,8 +16,8 @@ logger = setup_logging("datapilot.ocr")
 def extract_text_from_image(image_path: str, language: str = "eng") -> dict:
     """OCR on a single image."""
     try:
-        from PIL import Image
         import pytesseract
+        from PIL import Image
 
         p = Path(image_path)
         if not p.exists():

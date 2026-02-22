@@ -4,15 +4,13 @@ PPTX export — generate PowerPoint presentations from analysis results.
 Uses python-pptx. All text is configurable via parameters.
 """
 
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from datetime import datetime
 import re
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-import pandas as pd
 
-
-def _split_sentences(text: str) -> List[str]:
+def _split_sentences(text: str) -> list[str]:
     """Split text into sentences on sentence-ending . or ; boundaries."""
     parts = re.split(r'(?<!\d)\.(?!\d)\s*|;\s*', text.strip())
     return [s.strip() for s in parts if s.strip()]
@@ -27,13 +25,13 @@ def _truncate_words(text: str, max_words: int) -> str:
 
 
 def export_to_pptx(
-    analysis_results: Dict[str, Any],
+    analysis_results: dict[str, Any],
     output_path: str,
     title: str = "Data Analysis Report",
     subtitle: str = "Comprehensive Analysis",
     brand_name: str = "DataPilot",
-    visualisation_paths: Optional[Dict[str, Path]] = None,
-    metrics: Optional[List[Dict[str, str]]] = None,
+    visualisation_paths: dict[str, Path] | None = None,
+    metrics: list[dict[str, str]] | None = None,
 ) -> str:
     """
     Export analysis results to PowerPoint presentation.
@@ -51,9 +49,9 @@ def export_to_pptx(
         The output file path.
     """
     from pptx import Presentation
-    from pptx.util import Inches, Pt
     from pptx.dml.color import RGBColor
     from pptx.enum.text import PP_ALIGN
+    from pptx.util import Inches, Pt
 
     p = Path(output_path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -195,7 +193,7 @@ def export_to_pptx(
         pg.font.color.rgb = RGBColor(44, 62, 80)
 
         # Collect bullets: key_points first, then extract from narrative
-        bullets: List[str] = []
+        bullets: list[str] = []
         key_points = section.get("key_points", [])
         for kp in key_points:
             bullets.append(_truncate_words(kp, 15))

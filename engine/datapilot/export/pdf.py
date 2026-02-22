@@ -4,11 +4,9 @@ PDF export — generate PDF reports from analysis results.
 Uses reportlab. All text is configurable via parameters (no hardcoded brand/domain).
 """
 
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from datetime import datetime
-
-import pandas as pd
+from pathlib import Path
+from typing import Any
 
 
 def _make_numbered_canvas_class(brand_name="DataPilot"):
@@ -18,9 +16,9 @@ def _make_numbered_canvas_class(brand_name="DataPilot"):
     to ``SimpleDocTemplate.build()``.  The class inherits directly from
     reportlab's ``Canvas`` so all platypus machinery works correctly.
     """
-    from reportlab.pdfgen.canvas import Canvas as _Canvas
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.units import inch
+    from reportlab.pdfgen.canvas import Canvas as _Canvas
 
     class _NumberedCanvas(_Canvas):
 
@@ -51,13 +49,13 @@ def _make_numbered_canvas_class(brand_name="DataPilot"):
 
 
 def export_to_pdf(
-    analysis_results: Dict[str, Any],
+    analysis_results: dict[str, Any],
     output_path: str,
     title: str = "Data Analysis Report",
     subtitle: str = "Comprehensive Analysis",
     brand_name: str = "DataPilot",
-    visualisation_paths: Optional[Dict[str, Path]] = None,
-    metrics: Optional[List[Dict[str, str]]] = None,
+    visualisation_paths: dict[str, Path] | None = None,
+    metrics: list[dict[str, str]] | None = None,
 ) -> str:
     """
     Export analysis results to PDF format using reportlab.
@@ -75,14 +73,21 @@ def export_to_pdf(
         The output file path.
     """
     from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-        Image, PageBreak, ListFlowable, ListItem,
+        Image,
+        ListFlowable,
+        ListItem,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
     )
-    from reportlab.lib.enums import TA_CENTER
 
     p = Path(output_path)
     p.parent.mkdir(parents=True, exist_ok=True)

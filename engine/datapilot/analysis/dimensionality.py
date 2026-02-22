@@ -4,16 +4,15 @@ Dimensionality reduction — PCA, Truncated SVD, Factor Analysis, t-SNE, UMAP.
 Provides explained variance, component loadings, and 2D visualization data.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from ..utils.helpers import load_data, save_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.dimensionality")
 
@@ -21,8 +20,8 @@ logger = setup_logging("datapilot.dimensionality")
 def reduce_dimensions(
     file_path: str,
     method: str = "pca",
-    n_components: Union[int, str] = "auto",
-    features: Optional[List[str]] = None,
+    n_components: int | str = "auto",
+    features: list[str] | None = None,
 ) -> dict:
     """
     Dimensionality reduction.
@@ -133,12 +132,12 @@ def reduce_dimensions(
         return {"status": "error", "message": str(e)}
 
 
-def pca_analysis(file_path: str, n_components: Optional[int] = None) -> dict:
+def pca_analysis(file_path: str, n_components: int | None = None) -> dict:
     """PCA with full loadings analysis."""
     return reduce_dimensions(file_path, method="pca", n_components=n_components or "auto")
 
 
-def visualize_2d(file_path: str, method: str = "pca", color_by: Optional[str] = None) -> dict:
+def visualize_2d(file_path: str, method: str = "pca", color_by: str | None = None) -> dict:
     """Reduce to 2D and return scatter-ready data."""
     try:
         df = load_data(file_path)
@@ -152,7 +151,7 @@ def visualize_2d(file_path: str, method: str = "pca", color_by: Optional[str] = 
         points = []
         if red_df is not None:
             for i in range(len(red_df)):
-                pt: Dict[str, Any] = {"x": float(red_df.iloc[i, 0]), "y": float(red_df.iloc[i, 1])}
+                pt: dict[str, Any] = {"x": float(red_df.iloc[i, 0]), "y": float(red_df.iloc[i, 1])}
                 if color_by and color_by in df.columns:
                     pt["color"] = safe_json_serialize(df[color_by].iloc[i])
                 points.append(pt)

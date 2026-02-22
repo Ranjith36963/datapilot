@@ -5,16 +5,15 @@ Supports Pearson, Spearman, Kendall, auto-selection, partial correlation,
 and multicollinearity warnings.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.correlation")
 
@@ -51,7 +50,7 @@ def partial_correlation(
     df: pd.DataFrame,
     x: str,
     y: str,
-    controlling: List[str],
+    controlling: list[str],
 ) -> dict:
     """Correlation between x and y, controlling for other variables."""
     try:
@@ -98,7 +97,7 @@ def partial_correlation(
 
 def analyze_correlations(
     file_path: str,
-    target: Optional[str] = None,
+    target: str | None = None,
     method: str = "auto",
 ) -> dict:
     """
@@ -132,7 +131,7 @@ def analyze_correlations(
         corr_dict = {c: {c2: round(float(corr.loc[c, c2]), 4) for c2 in num_cols} for c in num_cols}
 
         # Top pairwise correlations
-        top_pairs: List[Dict[str, Any]] = []
+        top_pairs: list[dict[str, Any]] = []
         for i in range(len(num_cols)):
             for j in range(i + 1, len(num_cols)):
                 r = float(corr.iloc[i, j])

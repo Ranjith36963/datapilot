@@ -7,7 +7,7 @@ to the best provider for that task, with automatic failover.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .provider import LLMProvider, NarrativeResult, RoutingResult
 
@@ -37,15 +37,15 @@ class FailoverProvider(LLMProvider):
 
     def __init__(
         self,
-        providers: Dict[str, LLMProvider],
-        task_routing: Optional[Dict[str, List[str]]] = None,
+        providers: dict[str, LLMProvider],
+        task_routing: dict[str, list[str]] | None = None,
     ):
         self.providers = providers
         self.task_routing = task_routing or DEFAULT_TASK_ROUTING
         available = list(providers.keys())
         logger.info(f"FailoverProvider initialized with providers: {available}")
 
-    def _get_provider_order(self, task: str) -> List[Tuple[str, LLMProvider]]:
+    def _get_provider_order(self, task: str) -> list[tuple[str, LLMProvider]]:
         """Get ordered list of (name, provider) for a task, filtered to available providers."""
         order = self.task_routing.get(task, list(self.providers.keys()))
         result = []
@@ -61,9 +61,9 @@ class FailoverProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
-    ) -> Optional[RoutingResult]:
+    ) -> RoutingResult | None:
         """Route question using task-aware provider order."""
         for name, provider in self._get_provider_order("routing"):
             try:
@@ -80,11 +80,11 @@ class FailoverProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
-    ) -> Optional[NarrativeResult]:
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
+    ) -> NarrativeResult | None:
         """Generate narrative using task-aware provider order."""
         for name, provider in self._get_provider_order("narrative"):
             try:
@@ -102,9 +102,9 @@ class FailoverProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest charts using task-aware provider order."""
         for name, provider in self._get_provider_order("chart_suggest"):
             try:
@@ -118,7 +118,7 @@ class FailoverProvider(LLMProvider):
                 logger.warning(f"Chart suggest failed with {name}: {e}")
         return {"suggestions": []}  # All failed — return empty
 
-    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+    def generate_chart_insight(self, chart_summary: dict[str, Any]) -> str:
         """Generate chart insight using task-aware provider order."""
         for name, provider in self._get_provider_order("chart_insight"):
             try:
@@ -132,7 +132,7 @@ class FailoverProvider(LLMProvider):
                 logger.warning(f"Chart insight failed with {name}: {e}")
         return ""  # All failed — return empty string
 
-    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+    def fingerprint_dataset(self, prompt: str) -> dict[str, Any] | None:
         """Classify dataset domain using task-aware provider order (simple interface).
 
         Args:
@@ -160,7 +160,7 @@ class FailoverProvider(LLMProvider):
 
         return None  # All providers failed
 
-    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+    def understand_dataset(self, snapshot: str) -> dict[str, Any] | None:
         """Understand dataset using task-aware provider order."""
         for name, provider in self._get_provider_order("understand"):
             if not hasattr(provider, "understand_dataset"):
@@ -177,7 +177,7 @@ class FailoverProvider(LLMProvider):
                 logger.warning(f"Understand failed with {name}: {e}")
         return None
 
-    def generate_plan(self, prompt: str) -> Optional[str]:
+    def generate_plan(self, prompt: str) -> str | None:
         """Generate analysis plan using task-aware provider order."""
         for name, provider in self._get_provider_order("plan"):
             if not hasattr(provider, "generate_plan"):
@@ -193,7 +193,7 @@ class FailoverProvider(LLMProvider):
                 logger.warning(f"Plan failed with {name}: {e}")
         return None
 
-    def generate_summary(self, prompt: str) -> Optional[str]:
+    def generate_summary(self, prompt: str) -> str | None:
         """Generate summary using task-aware provider order."""
         for name, provider in self._get_provider_order("summary"):
             if not hasattr(provider, "generate_summary"):

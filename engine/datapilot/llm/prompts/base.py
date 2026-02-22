@@ -6,7 +6,6 @@ The skill catalog is auto-generated from function docstrings at import time.
 
 import inspect
 import logging
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("datapilot.llm.prompts")
 
@@ -99,11 +98,11 @@ Dataset columns: {columns_info}
 # ---------------------------------------------------------------------------
 
 # Registry: list of (skill_name, callable, description, param_hints)
-_SKILL_REGISTRY: List[Tuple[str, object, str, Dict]] = []
-_CATALOG_CACHE: Optional[str] = None
+_SKILL_REGISTRY: list[tuple[str, object, str, dict]] = []
+_CATALOG_CACHE: str | None = None
 
 
-def _extract_first_line(docstring: Optional[str]) -> str:
+def _extract_first_line(docstring: str | None) -> str:
     """Extract the first non-empty line from a docstring."""
     if not docstring:
         return "No description available."
@@ -114,7 +113,7 @@ def _extract_first_line(docstring: Optional[str]) -> str:
     return "No description available."
 
 
-def _extract_params(func) -> Dict[str, str]:
+def _extract_params(func) -> dict[str, str]:
     """Extract parameter names and their annotations from a function."""
     params = {}
     try:
@@ -134,7 +133,7 @@ def _extract_params(func) -> Dict[str, str]:
     return params
 
 
-def build_skill_registry() -> List[Tuple[str, object, str, Dict]]:
+def build_skill_registry() -> list[tuple[str, object, str, dict]]:
     """Build the skill registry from datapilot's exported functions.
 
     Returns list of (name, callable, description, param_hints).
@@ -211,7 +210,7 @@ def get_skill_function(skill_name: str):
     return None
 
 
-def get_skill_names() -> List[str]:
+def get_skill_names() -> list[str]:
     """Return list of all available skill names."""
     return [name for name, *_ in build_skill_registry()]
 
@@ -220,7 +219,7 @@ def format_routing_prompt(
     question: str,
     columns_info: str,
     shape: str,
-    skill_catalog: Optional[str] = None,
+    skill_catalog: str | None = None,
 ) -> str:
     """Format a routing prompt with dataset context."""
     catalog = skill_catalog or build_skill_catalog()
@@ -234,7 +233,7 @@ def format_routing_prompt(
 
 def format_narrative_prompt(
     result_json: str,
-    question: Optional[str] = None,
+    question: str | None = None,
 ) -> str:
     """Format a narrative generation prompt."""
     question_line = f"Original question: {question}\n\n" if question else ""
@@ -246,7 +245,7 @@ def format_narrative_prompt(
 
 def format_chart_prompt(
     columns_info: str,
-    analysis_result: Optional[str] = None,
+    analysis_result: str | None = None,
 ) -> str:
     """Format a chart suggestion prompt."""
     context = ""

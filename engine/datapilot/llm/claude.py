@@ -7,7 +7,7 @@ Requires ANTHROPIC_API_KEY environment variable.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.config import Config
 from .provider import LLMProvider, NarrativeResult, RoutingResult
@@ -20,7 +20,7 @@ class ClaudeProvider(LLMProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "claude-sonnet-4-5-20250929",
     ):
         self.api_key = api_key or Config.ANTHROPIC_API_KEY
@@ -47,7 +47,7 @@ class ClaudeProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
     ) -> RoutingResult:
         """Route a question using Claude with tool_use."""
@@ -104,10 +104,10 @@ class ClaudeProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """Generate narrative using Claude."""
         client = self._get_client()
@@ -155,9 +155,9 @@ class ClaudeProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest a chart using Claude."""
         client = self._get_client()
 

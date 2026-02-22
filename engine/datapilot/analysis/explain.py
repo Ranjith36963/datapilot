@@ -5,16 +5,14 @@ Uses SHAP for global and local explanations. Falls back to tree-based
 feature importance if SHAP is unavailable.
 """
 
-from typing import Any, Dict, List, Optional
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 
 from ..utils.helpers import load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.explain")
 
@@ -29,7 +27,7 @@ def _load_model(model_path: str):
     return data["model"], data.get("scaler"), data["features"], data.get("target_le"), data.get("label_encoders", {})
 
 
-def _prepare_X(df: pd.DataFrame, features: List[str], scaler, label_encoders=None):
+def _prepare_X(df: pd.DataFrame, features: list[str], scaler, label_encoders=None):
     """Prepare feature matrix matching training pipeline."""
     from sklearn.preprocessing import LabelEncoder
     if label_encoders is None:

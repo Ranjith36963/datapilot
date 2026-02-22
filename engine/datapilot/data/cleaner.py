@@ -7,7 +7,7 @@ strategies.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,6 @@ from ..utils.helpers import load_data, save_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
 
-
 logger = setup_logging("datapilot.cleaner")
 
 
@@ -24,7 +23,7 @@ logger = setup_logging("datapilot.cleaner")
 # Building blocks
 # ---------------------------------------------------------------------------
 
-def standardize_column_names(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
+def standardize_column_names(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Lowercase, replace spaces/hyphens with underscores, strip special chars."""
     original = df.columns.tolist()
     new_cols = []
@@ -40,7 +39,7 @@ def standardize_column_names(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
     return df, {"columns_renamed": renamed, "count": len(renamed)}
 
 
-def impute_missing(df: pd.DataFrame, strategy: str = "auto") -> Tuple[pd.DataFrame, Dict]:
+def impute_missing(df: pd.DataFrame, strategy: str = "auto") -> tuple[pd.DataFrame, dict]:
     """
     Impute missing values.
 
@@ -52,7 +51,7 @@ def impute_missing(df: pd.DataFrame, strategy: str = "auto") -> Tuple[pd.DataFra
         drop   — drop rows with any missing
     """
     df = df.copy()
-    changes: Dict[str, Dict] = {}
+    changes: dict[str, dict] = {}
 
     if strategy == "drop":
         before = len(df)
@@ -122,7 +121,7 @@ def curate_dataframe(
         df = load_data(file_path)
         logger.info(f"Curating {file_path}: {df.shape}")
         input_shape = list(df.shape)
-        all_changes: Dict[str, Any] = {
+        all_changes: dict[str, Any] = {
             "rows_removed": 0,
             "duplicates_removed": 0,
             "nulls_imputed": {},

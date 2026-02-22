@@ -7,7 +7,7 @@ Requires GEMINI_API_KEY environment variable.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..utils.config import Config
 from .provider import LLMProvider, NarrativeResult, RoutingResult, smart_fallback_suggestions
@@ -23,13 +23,13 @@ _NARRATION_EXCLUDED_KEYS = {
 }
 
 
-def _truncate_for_narration(result: Dict[str, Any]) -> str:
+def _truncate_for_narration(result: dict[str, Any]) -> str:
     """Truncate analysis result to keep narration prompts small.
 
     Strips excluded keys (base64 blobs, file paths), caps list values at
     MAX_NARRATION_ROWS items, and caps the final JSON at MAX_NARRATION_CHARS.
     """
-    truncated: Dict[str, Any] = {}
+    truncated: dict[str, Any] = {}
     for key, value in result.items():
         if key in _NARRATION_EXCLUDED_KEYS:
             continue
@@ -37,7 +37,7 @@ def _truncate_for_narration(result: Dict[str, Any]) -> str:
             truncated[key] = value[:MAX_NARRATION_ROWS]
             truncated[f"_{key}_truncated"] = f"{MAX_NARRATION_ROWS} of {len(value)} items shown"
         elif isinstance(value, dict):
-            inner: Dict[str, Any] = {}
+            inner: dict[str, Any] = {}
             for k, v in value.items():
                 if isinstance(v, list) and len(v) > MAX_NARRATION_ROWS:
                     inner[k] = v[:MAX_NARRATION_ROWS]
@@ -99,9 +99,9 @@ class GeminiProvider(LLMProvider):
     def route_question(
         self,
         question: str,
-        data_context: Dict[str, Any],
+        data_context: dict[str, Any],
         skill_catalog: str,
-    ) -> Optional[RoutingResult]:
+    ) -> RoutingResult | None:
         """Route a question using Gemini."""
         columns_info = ", ".join(
             f"{c['name']} ({c.get('semantic_type', c.get('dtype', 'unknown'))})"
@@ -137,11 +137,11 @@ class GeminiProvider(LLMProvider):
 
     def generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
-        question: Optional[str] = None,
-        skill_name: Optional[str] = None,
-        conversation_context: Optional[str] = None,
-    ) -> Optional[NarrativeResult]:
+        analysis_result: dict[str, Any],
+        question: str | None = None,
+        skill_name: str | None = None,
+        conversation_context: str | None = None,
+    ) -> NarrativeResult | None:
         """Generate narrative using Gemini."""
         result_str = _truncate_for_narration(analysis_result)
         logger.info(f"Narration prompt size: {len(result_str)} chars")
@@ -197,7 +197,7 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini narrative failed: {e}")
             return None
 
-    def generate_chart_insight(self, chart_summary: Dict[str, Any]) -> str:
+    def generate_chart_insight(self, chart_summary: dict[str, Any]) -> str:
         """Generate a one-sentence insight from chart summary data."""
         summary_str = json.dumps(chart_summary, default=str)
         if len(summary_str) > 2000:
@@ -218,9 +218,9 @@ class GeminiProvider(LLMProvider):
 
     def suggest_chart(
         self,
-        data_context: Dict[str, Any],
-        analysis_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        data_context: dict[str, Any],
+        analysis_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Suggest 4-6 ranked charts using Gemini."""
         columns_info = "\n".join(
             f"- {c['name']} ({c.get('semantic_type', 'unknown')}, {c.get('n_unique', '?')} unique)"
@@ -261,7 +261,7 @@ class GeminiProvider(LLMProvider):
             if not isinstance(suggestions_raw, list):
                 suggestions_raw = [suggestions_raw]
 
-            suggestions: List[Dict[str, Any]] = []
+            suggestions: list[dict[str, Any]] = []
             for item in suggestions_raw:
                 # Clean up "null" strings → None
                 for key in ("x", "y", "hue"):
@@ -283,7 +283,7 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini chart suggestion failed: {e}")
             return smart_fallback_suggestions(data_context)
 
-    def fingerprint_dataset(self, prompt: str) -> Optional[Dict[str, Any]]:
+    def fingerprint_dataset(self, prompt: str) -> dict[str, Any] | None:
         """Classify dataset domain using Gemini (simple interface).
 
         Args:
@@ -316,7 +316,7 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini fingerprint_dataset failed: {e}")
             return None
 
-    def understand_dataset(self, snapshot: str) -> Optional[Dict[str, Any]]:
+    def understand_dataset(self, snapshot: str) -> dict[str, Any] | None:
         """Analyze dataset snapshot and return structured understanding."""
         try:
             prompt = (
@@ -335,7 +335,7 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini understand_dataset failed: {e}")
             return None
 
-    def generate_plan(self, prompt: str) -> Optional[str]:
+    def generate_plan(self, prompt: str) -> str | None:
         """Generate an analysis plan. Returns raw LLM text (JSON string)."""
         try:
             return self._generate(prompt, temperature=0, max_tokens=1024)
@@ -343,7 +343,7 @@ class GeminiProvider(LLMProvider):
             logger.warning(f"Gemini generate_plan failed: {e}")
             return None
 
-    def generate_summary(self, prompt: str) -> Optional[str]:
+    def generate_summary(self, prompt: str) -> str | None:
         """Generate a summary of analysis results."""
         try:
             return self._generate(prompt, temperature=0.3, max_tokens=1024)

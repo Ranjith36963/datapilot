@@ -9,19 +9,17 @@ Usage:
     print(result.narrative)
 """
 
-import json
 import logging
 import sys
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 from ..llm.provider import LLMProvider, NarrativeResult, RoutingResult
 from ..utils.config import Config
 from ..utils.helpers import load_data
-from ..utils.serializer import safe_json_serialize
 from .executor import ExecutionResult, Executor
 from .router import Router, build_data_context
 
@@ -35,11 +33,11 @@ class AnalystResult:
     question: str
     routing: RoutingResult
     execution: ExecutionResult
-    narrative: Optional[NarrativeResult] = None
+    narrative: NarrativeResult | None = None
     routing_ms: float = 0.0
     execution_ms: float = 0.0
     narration_ms: float = 0.0
-    _narration_thread: Optional[threading.Thread] = field(
+    _narration_thread: threading.Thread | None = field(
         default=None, repr=False, compare=False,
     )
 
@@ -52,7 +50,7 @@ class AnalystResult:
         return self.execution.status
 
     @property
-    def data(self) -> Optional[Dict[str, Any]]:
+    def data(self) -> dict[str, Any] | None:
         return self.execution.result
 
     @property
@@ -60,11 +58,11 @@ class AnalystResult:
         return self.routing.route_method
 
     @property
-    def code_snippet(self) -> Optional[str]:
+    def code_snippet(self) -> str | None:
         return self.execution.code_snippet
 
     @property
-    def columns_used(self) -> Optional[list]:
+    def columns_used(self) -> list | None:
         return self.execution.columns_used
 
     @property
@@ -80,25 +78,25 @@ class AnalystResult:
         return "Analysis complete. See raw results for details."
 
     @property
-    def key_points(self) -> List[str]:
+    def key_points(self) -> list[str]:
         if self.narrative:
             return self.narrative.key_points
         return []
 
     @property
-    def suggestions(self) -> List[str]:
+    def suggestions(self) -> list[str]:
         if self.narrative:
             return self.narrative.suggestions
         return []
 
-    def wait_for_narrative(self, timeout: float = 30.0) -> Optional[NarrativeResult]:
+    def wait_for_narrative(self, timeout: float = 30.0) -> NarrativeResult | None:
         """Block until background narration finishes (or timeout)."""
         t = self._narration_thread
         if t is not None:
             t.join(timeout=timeout)
         return self.narrative
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = {
             "question": self.question,
             "skill": self.routing.skill_name,
@@ -144,7 +142,7 @@ _NARRATION_EXCLUDED_KEYS = {
 
 def _verify_narrative(
     narrative: NarrativeResult,
-    analysis_result: Dict[str, Any],
+    analysis_result: dict[str, Any],
 ) -> bool:
     """Verify that LLM narrative numbers actually appear in the analysis result.
 
@@ -218,7 +216,7 @@ def _verify_narrative(
 
     # Phase 2: Attribution check — are numbers attributed to the right columns?
     # Build number-to-context mapping from the result data
-    number_context: Dict[float, set] = {}  # number -> set of context keys
+    number_context: dict[float, set] = {}  # number -> set of context keys
 
     def _collect_with_context(obj, context_keys: frozenset = frozenset()):
         if isinstance(obj, (int, float)) and not isinstance(obj, bool):
@@ -290,9 +288,9 @@ def _verify_narrative(
 
 
 def _sanitize_for_narration(
-    result: Dict[str, Any],
-    data_context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    result: dict[str, Any],
+    data_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Strip large/binary keys and inject column info for narration.
 
     - Removes base64 blobs and server file paths (no analytical value, waste tokens).
@@ -322,7 +320,7 @@ def _fmt(v: Any) -> str:
 
 
 def _template_narrative(
-    result: Dict[str, Any],
+    result: dict[str, Any],
     skill_name: str,
     status: str,
 ) -> NarrativeResult:
@@ -342,9 +340,9 @@ def _template_narrative(
     # Gather actual column names for suggestions
     dataset_columns = result.get("_dataset_columns", [])
 
-    def _col_suggestions() -> List[str]:
+    def _col_suggestions() -> list[str]:
         """Generate follow-up suggestions using actual column names."""
-        sug: List[str] = []
+        sug: list[str] = []
         if len(dataset_columns) >= 2:
             sug.append(f"Show me a chart of {dataset_columns[0]} vs {dataset_columns[1]}")
         if dataset_columns:
@@ -353,8 +351,8 @@ def _template_narrative(
         return sug[:3]
 
     text = ""
-    key_points: List[str] = []
-    suggestions: List[str] = []
+    key_points: list[str] = []
+    suggestions: list[str] = []
 
     if skill_name == "profile_data":
         overview = result.get("overview", {})
@@ -636,7 +634,7 @@ def _template_narrative(
     else:
         # Smart generic: extract numeric results for any unhandled skill
         readable = skill_name.replace("_", " ").title()
-        parts: List[str] = []
+        parts: list[str] = []
         for k, v in result.items():
             if k.startswith("_") or k == "status":
                 continue
@@ -708,7 +706,7 @@ class Analyst:
     def __init__(
         self,
         data: Union[str, "Path", Any],
-        llm: Union[str, LLMProvider] = None,
+        llm: str | LLMProvider = None,
         auto_profile: bool = True,
     ):
         import pandas as pd
@@ -737,13 +735,13 @@ class Analyst:
         self.data_context = build_data_context(self.df)
 
         # History
-        self.history: List[AnalystResult] = []
+        self.history: list[AnalystResult] = []
 
         # Temp file path for skills that expect file_path
-        self._temp_path: Optional[str] = None
+        self._temp_path: str | None = None
 
         # Auto-profile
-        self._profile_cache: Optional[Dict] = None
+        self._profile_cache: dict | None = None
         if auto_profile:
             self._auto_profile()
 
@@ -829,7 +827,7 @@ class Analyst:
         self,
         question: str,
         narrate: bool = True,
-        conversation_context: Optional[str] = None,
+        conversation_context: str | None = None,
     ) -> AnalystResult:
         """Ask a natural-language question about the data.
 
@@ -888,11 +886,11 @@ class Analyst:
 
     def _generate_narrative(
         self,
-        analysis_result: Dict[str, Any],
+        analysis_result: dict[str, Any],
         question: str,
         skill_name: str,
         status: str,
-        conversation_context: Optional[str] = None,
+        conversation_context: str | None = None,
     ) -> NarrativeResult:
         """Generate narrative via LLM, falling back to templates on failure.
 
@@ -913,10 +911,10 @@ class Analyst:
                     if _verify_narrative(narrative, sanitized):
                         return narrative
                     else:
-                        print(f"[DataPilot] LLM narrative rejected (numbers don't match result data), using template", file=sys.stderr)
+                        print("[DataPilot] LLM narrative rejected (numbers don't match result data), using template", file=sys.stderr)
                         logger.warning("Narrative rejected: numbers don't match result data")
                 else:
-                    print(f"[DataPilot] LLM narrative rejected (contains '?' or too short), using template", file=sys.stderr)
+                    print("[DataPilot] LLM narrative rejected (contains '?' or too short), using template", file=sys.stderr)
         except Exception as e:
             print(f"[DataPilot] LLM narrative failed: {e}", file=sys.stderr)
             logger.warning(f"LLM narrative failed: {e}")
@@ -926,11 +924,11 @@ class Analyst:
 
     def _try_llm_narrative(
         self,
-        analysis_result: Dict[str, Any],
+        analysis_result: dict[str, Any],
         question: str,
         skill_name: str,
-        conversation_context: Optional[str] = None,
-    ) -> Optional[NarrativeResult]:
+        conversation_context: str | None = None,
+    ) -> NarrativeResult | None:
         """Try to generate narrative via the LLM provider.
 
         Expects analysis_result to already be sanitized (no base64 blobs).
@@ -957,7 +955,7 @@ class Analyst:
     # Direct skill shortcuts
     # ------------------------------------------------------------------
 
-    def profile(self) -> Dict[str, Any]:
+    def profile(self) -> dict[str, Any]:
         """Profile the dataset."""
         if self._profile_cache:
             return self._profile_cache
@@ -965,12 +963,12 @@ class Analyst:
         self._profile_cache = profile_data(self._file_path)
         return self._profile_cache
 
-    def describe(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def describe(self, columns: list[str] | None = None) -> dict[str, Any]:
         """Describe numeric and categorical columns."""
         from ..analysis.descriptive import describe_data
         return describe_data(self._file_path, columns=columns)
 
-    def correlations(self, target: Optional[str] = None) -> Dict[str, Any]:
+    def correlations(self, target: str | None = None) -> dict[str, Any]:
         """Analyze correlations, optionally focused on a target column."""
         from ..analysis.correlation import analyze_correlations
         kwargs = {}
@@ -978,7 +976,7 @@ class Analyst:
             kwargs["target"] = target
         return analyze_correlations(self._file_path, **kwargs)
 
-    def anomalies(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
+    def anomalies(self, columns: list[str] | None = None) -> dict[str, Any]:
         """Detect outliers and anomalies."""
         from ..analysis.anomaly import detect_outliers
         kwargs = {}
@@ -990,7 +988,7 @@ class Analyst:
         self,
         target: str,
         algorithm: str = "auto",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Train a classifier on the data."""
         from ..analysis.classification import classify
         return classify(self._file_path, target=target, algorithm=algorithm)
@@ -999,15 +997,15 @@ class Analyst:
         self,
         target: str,
         algorithm: str = "auto",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Train a regressor on the data."""
         from ..analysis.regression import predict_numeric
         return predict_numeric(self._file_path, target=target, algorithm=algorithm)
 
     def cluster(
         self,
-        n_clusters: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        n_clusters: int | None = None,
+    ) -> dict[str, Any]:
         """Find clusters in the data."""
         from ..analysis.clustering import find_clusters
         kwargs = {}
@@ -1020,7 +1018,7 @@ class Analyst:
         date_col: str,
         value_col: str,
         periods: int = 12,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forecast a time series."""
         from ..analysis.timeseries import forecast as ts_forecast
         return ts_forecast(
@@ -1033,17 +1031,17 @@ class Analyst:
     def chart(
         self,
         chart_type: str = "auto",
-        x: Optional[str] = None,
-        y: Optional[str] = None,
+        x: str | None = None,
+        y: str | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a chart."""
-        from ..viz.charts import create_chart, auto_chart
+        from ..viz.charts import auto_chart, create_chart
         if chart_type == "auto":
             return auto_chart(self._file_path)
         return create_chart(self._file_path, chart_type=chart_type, x=x, y=y, **kwargs)
 
-    def suggest_chart(self) -> Dict[str, Any]:
+    def suggest_chart(self) -> dict[str, Any]:
         """Ask the LLM to suggest the best chart for this data."""
         if self.provider is None:
             return {"suggestions": []}
@@ -1051,28 +1049,28 @@ class Analyst:
 
     def _build_report_data(
         self,
-        analysis_results: Optional[List[Dict]] = None,
-    ) -> Dict[str, Any]:
+        analysis_results: list[dict] | None = None,
+    ) -> dict[str, Any]:
         """Build a structured report data dict from analysis history.
 
         Combines narratives, key points, metrics, and chart paths into a
         format the export functions can render as rich report content.
         """
         # Deduplicate history by skill_name (keep latest entry per skill)
-        seen_skills: Dict[str, int] = {}
+        seen_skills: dict[str, int] = {}
         for idx, ar in enumerate(self.history):
             seen_skills[ar.skill_name] = idx
         deduped_indices = sorted(seen_skills.values())
         deduped_history = [self.history[i] for i in deduped_indices]
 
         # Collect sections from deduplicated history
-        sections: List[Dict[str, Any]] = []
-        all_key_points: List[str] = []
-        all_metrics: List[Dict[str, str]] = []
-        chart_paths: Dict[str, str] = {}
+        sections: list[dict[str, Any]] = []
+        all_key_points: list[str] = []
+        all_metrics: list[dict[str, str]] = []
+        chart_paths: dict[str, str] = {}
 
         for ar in deduped_history:
-            section: Dict[str, Any] = {
+            section: dict[str, Any] = {
                 "heading": f"Analysis: {ar.skill_name.replace('_', ' ').title()}",
                 "question": ar.question,
                 "skill": ar.skill_name,
@@ -1192,7 +1190,7 @@ class Analyst:
     def export(
         self,
         path: str,
-        analysis_results: Optional[List[Dict]] = None,
+        analysis_results: list[dict] | None = None,
         **kwargs,
     ) -> str:
         """Export results to PDF, DOCX, or PPTX (inferred from extension).
@@ -1240,11 +1238,11 @@ class Analyst:
         return self.df.shape
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> list[str]:
         return list(self.df.columns)
 
     @property
-    def dtypes(self) -> Dict[str, str]:
+    def dtypes(self) -> dict[str, str]:
         return {col: str(dtype) for col, dtype in self.df.dtypes.items()}
 
     def __repr__(self) -> str:

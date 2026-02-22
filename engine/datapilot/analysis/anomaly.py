@@ -4,15 +4,12 @@ Outlier detection — find anomalies in data.
 Methods: Isolation Forest, Local Outlier Factor, Z-score, IQR, DBSCAN.
 """
 
-from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 
-from ..utils.helpers import load_data, save_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.anomaly")
 
@@ -21,7 +18,7 @@ logger = setup_logging("datapilot.anomaly")
 # Core detection
 # ---------------------------------------------------------------------------
 
-def _detect_iqr(df: pd.DataFrame, columns: List[str], threshold: float = 1.5):
+def _detect_iqr(df: pd.DataFrame, columns: list[str], threshold: float = 1.5):
     """IQR-based outlier detection. Returns boolean mask and scores."""
     outlier_mask = pd.Series(False, index=df.index)
     scores = pd.Series(0.0, index=df.index)
@@ -54,7 +51,7 @@ def _detect_iqr(df: pd.DataFrame, columns: List[str], threshold: float = 1.5):
     return outlier_mask, scores, col_details
 
 
-def _detect_zscore(df: pd.DataFrame, columns: List[str], threshold: float = 3.0):
+def _detect_zscore(df: pd.DataFrame, columns: list[str], threshold: float = 3.0):
     """Z-score outlier detection."""
     outlier_mask = pd.Series(False, index=df.index)
     scores = pd.Series(0.0, index=df.index)
@@ -83,7 +80,7 @@ def _detect_zscore(df: pd.DataFrame, columns: List[str], threshold: float = 3.0)
     return outlier_mask, scores, col_details
 
 
-def _detect_isolation_forest(df: pd.DataFrame, columns: List[str], contamination: float = 0.05):
+def _detect_isolation_forest(df: pd.DataFrame, columns: list[str], contamination: float = 0.05):
     """Isolation Forest outlier detection."""
     from sklearn.ensemble import IsolationForest
     from sklearn.preprocessing import StandardScaler
@@ -102,7 +99,7 @@ def _detect_isolation_forest(df: pd.DataFrame, columns: List[str], contamination
     return outlier_mask, scores, []
 
 
-def _detect_lof(df: pd.DataFrame, columns: List[str], contamination: float = 0.05):
+def _detect_lof(df: pd.DataFrame, columns: list[str], contamination: float = 0.05):
     """Local Outlier Factor detection."""
     from sklearn.neighbors import LocalOutlierFactor
     from sklearn.preprocessing import StandardScaler
@@ -121,7 +118,7 @@ def _detect_lof(df: pd.DataFrame, columns: List[str], contamination: float = 0.0
     return outlier_mask, scores, []
 
 
-def _detect_dbscan(df: pd.DataFrame, columns: List[str], eps: float = 0.5):
+def _detect_dbscan(df: pd.DataFrame, columns: list[str], eps: float = 0.5):
     """DBSCAN-based outlier detection (noise points = outliers)."""
     from sklearn.cluster import DBSCAN
     from sklearn.preprocessing import StandardScaler
@@ -146,7 +143,7 @@ def _detect_dbscan(df: pd.DataFrame, columns: List[str], eps: float = 0.5):
 def detect_outliers(
     file_path: str,
     method: str = "isolation_forest",
-    columns: Optional[List[str]] = None,
+    columns: list[str] | None = None,
     contamination: float = 0.05,
 ) -> dict:
     """
@@ -199,7 +196,7 @@ def detect_outliers(
 
 def flag_anomalies(
     df: pd.DataFrame,
-    columns: Optional[List[str]] = None,
+    columns: list[str] | None = None,
     method: str = "isolation_forest",
 ) -> pd.DataFrame:
     """Return df with 'is_outlier' and 'outlier_score' columns added."""

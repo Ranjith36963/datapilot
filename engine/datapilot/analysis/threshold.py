@@ -6,16 +6,15 @@ Methods: decision_tree, brute_force, optbinning, change_point.
 Includes bootstrap confidence intervals.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
-from ..utils.helpers import load_data, setup_logging, get_numeric_columns
+from ..utils.helpers import get_numeric_columns, load_data, setup_logging
 from ..utils.serializer import safe_json_serialize
 from ..utils.uploader import upload_result
-
 
 logger = setup_logging("datapilot.threshold")
 
@@ -30,7 +29,7 @@ def _brute_force_threshold(
     target: str,
     min_samples: int = 50,
     min_impact: float = 0.05,
-) -> Optional[Dict]:
+) -> dict | None:
     """
     Brute-force search over unique values for the best split.
 
@@ -71,7 +70,7 @@ def _brute_force_threshold(
     return best
 
 
-def _decision_tree_threshold(df: pd.DataFrame, feature: str, target: str) -> Optional[Dict]:
+def _decision_tree_threshold(df: pd.DataFrame, feature: str, target: str) -> dict | None:
     """Use a depth-1 decision tree to find the single best split."""
     from sklearn.tree import DecisionTreeClassifier
 
@@ -111,7 +110,7 @@ def _decision_tree_threshold(df: pd.DataFrame, feature: str, target: str) -> Opt
     }
 
 
-def _optbinning_threshold(df: pd.DataFrame, feature: str, target: str) -> Optional[Dict]:
+def _optbinning_threshold(df: pd.DataFrame, feature: str, target: str) -> dict | None:
     """Use optbinning for optimal binning threshold."""
     try:
         from optbinning import OptimalBinning
@@ -156,7 +155,7 @@ def _optbinning_threshold(df: pd.DataFrame, feature: str, target: str) -> Option
         return None
 
 
-def _change_point_threshold(df: pd.DataFrame, feature: str, target: str) -> Optional[Dict]:
+def _change_point_threshold(df: pd.DataFrame, feature: str, target: str) -> dict | None:
     """Statistical change-point detection for threshold."""
     try:
         import ruptures as rpt
@@ -210,7 +209,7 @@ def find_optimal_split(
     feature: str,
     target: str,
     method: str = "decision_tree",
-) -> Optional[Dict]:
+) -> dict | None:
     """Find single best threshold for one feature."""
     if method == "decision_tree":
         return _decision_tree_threshold(df, feature, target)
@@ -229,7 +228,7 @@ def find_optimal_split(
 def find_thresholds(
     file_path: str,
     target: str,
-    features: Optional[List[str]] = None,
+    features: list[str] | None = None,
     method: str = "decision_tree",
 ) -> dict:
     """
@@ -247,13 +246,11 @@ def find_thresholds(
 
         logger.info(f"Finding thresholds for {len(cols)} features via {method}")
 
-        thresholds: List[Dict[str, Any]] = []
+        thresholds: list[dict[str, Any]] = []
         for col in cols:
             result = find_optimal_split(df, col, target, method)
             if result:
                 # Add p-value via chi-square test
-                below = df[df[col] < result["threshold"]]
-                above = df[df[col] >= result["threshold"]]
                 try:
                     ct = pd.crosstab(df[col] >= result["threshold"], df[target])
                     _, pval, _, _ = sp_stats.chi2_contingency(ct)
