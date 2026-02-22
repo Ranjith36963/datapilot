@@ -2,44 +2,36 @@
 
 **AI-powered data analysis.** Upload a dataset, ask questions in natural language, get insights.
 
-DataPilot routes your questions to **81+ analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by Groq LLMs.
+DataPilot routes your questions to **87 analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by multi-LLM failover (Groq + Gemini).
 
 ## Screenshots
 
-| Upload | Explore & Chat | Visualize |
-|--------|---------------|-----------|
-| ![Upload](docs/screenshots/upload.png) | ![Explore](docs/screenshots/explore.png) | ![Visualize](docs/screenshots/visualize.png) |
+| Upload | Data Preview |
+|--------|-------------|
+| ![Upload](docs/screenshots/upload.png) | ![Preview](docs/screenshots/preview.png) |
+
+| Explore & Chat | Auto-Pilot |
+|---------------|------------|
+| ![Explore](docs/screenshots/explore.png) | ![Autopilot](docs/screenshots/autopilot.png) |
+
+| Visualize | Export |
+|-----------|--------|
+| ![Visualize](docs/screenshots/visualize.png) | ![Export](docs/screenshots/export.png) |
 
 ## Features
 
 - **Natural Language Q&A** — Ask "What predicts churn?" and DataPilot picks the right analysis
-- **81 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
-- **Smart 4-Tier Routing** — Keywords → LLM → Semantic Intent → Fallback (works even without API keys)
+- **87 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
+- **6-Tier Smart Routing** — Chart keywords → Query keywords → Semantic embeddings → Primary LLM → Fallback LLM → Default
 - **Multi-LLM Support** — Groq + Gemini (task-aware failover), Ollama, Claude, or OpenAI
 - **Interactive Chat** — Streaming responses with key points and follow-up suggestions
-- **Chart Builder** — AI-suggested visualizations with manual controls
-- **Report Export** — PDF, Word, and PowerPoint reports from your analysis history
+- **AI Dataset Understanding** — LLM classifies domain, identifies target columns, suggests questions
 - **Auto-Pilot** — LLM generates and executes a full analysis plan automatically
+- **Chart Builder** — 13 chart types with AI-suggested visualizations and manual controls
+- **Report Export** — PDF, Word, and PowerPoint reports from your analysis history
 - **Dark/Light Mode** — Clean, modern interface built with Next.js and Tailwind
 
 ## Quick Start
-
-### Option 1: Docker (recommended)
-
-```bash
-git clone https://github.com/Ranjith36963/datapilot.git
-cd datapilot
-
-# Set your Groq API key (free at https://console.groq.com)
-echo "GROQ_API_KEY=your_key_here" > .env
-
-# Start all services
-docker compose up --build
-```
-
-Open [http://localhost:3000](http://localhost:3000) and upload a CSV.
-
-### Option 2: Manual Setup
 
 **Backend:**
 ```bash
@@ -56,33 +48,36 @@ npm install
 npm run dev
 ```
 
-**Groq API key:**
+**API keys:**
 ```bash
-export GROQ_API_KEY=your_key_here
+export GROQ_API_KEY=your_key_here    # Free at https://console.groq.com
+export GEMINI_API_KEY=your_key_here  # Free at https://aistudio.google.com
 ```
 
-Get a free API key at [console.groq.com](https://console.groq.com).
+Open [http://localhost:3000](http://localhost:3000) and upload a CSV.
+
+> **Note:** DataPilot works without any API keys! The semantic router handles question routing locally. LLM keys enhance narratives and enable smart_query, but are optional.
 
 ## Architecture
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   Frontend   │────▶│   FastAPI API     │────▶│  DataPilot      │
-│   Next.js    │◀────│   16 endpoints    │◀────│  Engine         │
-│   :3000      │     │   + WebSocket     │     │  81+ skills     │
+│   Next.js    │◀────│   17 endpoints    │◀────│  Engine         │
+│   :3000      │     │   + WebSocket     │     │  87 skills      │
 └──────────────┘     │   :8000           │     └────────┬────────┘
                      └────────┬─────────┘              │
                               │                   ┌────▼────────────┐
-                     ┌────────▼─────────┐    │  4-Tier Router   │
-                     │  Session Manager │    │  Keywords → LLM  │
-                     │  SQLite + Cache  │    │  → Semantic →    │
-                     └──────────────────┘    │    Fallback      │
-                                              └────┬────────────┘
-                                                   │
-                                              ┌────▼────────────┐
-                                              │  LLM Failover   │
-                                              │  Groq + Gemini  │
-                                              └─────────────────┘
+                     ┌────────▼─────────┐         │  6-Tier Router  │
+                     │  Session Manager │         │  Keywords →     │
+                     │  SQLite + Cache  │         │  Semantic →     │
+                     └──────────────────┘         │  LLM → Default  │
+                                                  └────┬────────────┘
+                                                       │
+                                                  ┌────▼────────────┐
+                                                  │  LLM Failover   │
+                                                  │  Groq + Gemini  │
+                                                  └─────────────────┘
 ```
 
 **Engine modules:**
@@ -90,9 +85,9 @@ Get a free API key at [console.groq.com](https://console.groq.com).
 | Module | Skills | Examples |
 |--------|--------|----------|
 | `data/` | Profiling, validation, cleaning | `profile_data`, `validate_data`, `curate_dataframe` |
-| `analysis/` | Stats, ML, time series | `describe_data`, `classify`, `forecast` |
+| `analysis/` | Stats, ML, time series, queries | `describe_data`, `classify`, `forecast`, `smart_query` |
 | `nlp/` | Sentiment, topics, entities | `analyze_sentiment`, `extract_topics` |
-| `viz/` | Charts and dashboards | `create_chart`, `auto_chart` |
+| `viz/` | 13 chart types + dashboards | `create_chart`, `auto_chart` |
 | `export/` | Reports | PDF, DOCX, PPTX generation |
 
 ## Python API
@@ -123,11 +118,15 @@ All endpoints require an `x-session-id` header (returned by upload).
 | `POST` | `/api/upload` | Upload a dataset (CSV, Excel, JSON, Parquet) |
 | `GET` | `/api/preview` | Preview rows |
 | `GET` | `/api/profile` | Full dataset profile |
+| `POST` | `/api/fingerprint/{id}` | AI domain understanding |
+| `GET` | `/api/autopilot/{id}` | Auto-pilot analysis plan |
 | `POST` | `/api/ask` | Ask a natural-language question |
 | `POST` | `/api/analyze` | Run a specific skill directly |
+| `GET` | `/api/history` | Analysis history |
 | `POST` | `/api/chart/create` | Create a chart |
-| `GET` | `/api/chart/suggest` | AI chart suggestion |
+| `GET` | `/api/chart/suggest` | AI chart suggestions |
 | `POST` | `/api/export/{fmt}` | Generate PDF/DOCX/PPTX report |
+| `GET` | `/api/export/download/{file}` | Download generated report |
 | `WS` | `/api/ws/chat` | Streaming chat |
 
 API docs at [http://localhost:8000/docs](http://localhost:8000/docs)
@@ -146,29 +145,15 @@ API docs at [http://localhost:8000/docs](http://localhost:8000/docs)
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL for frontend |
 
-> **Note:** DataPilot works without any API keys! The semantic router handles question routing intelligently. LLM keys enhance narratives and enable smart_query, but are optional.
-
-## Development
-
-```bash
-make dev-backend    # Start FastAPI with hot reload
-make dev-frontend   # Start Next.js dev server
-make test           # Run tests
-make lint           # Run linters
-make lint-fix       # Auto-fix lint issues
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
-
 ## Tech Stack
 
-**Engine:** Python 3.10+ · pandas · scikit-learn · XGBoost · LightGBM · statsmodels · SHAP · TextBlob · matplotlib · seaborn · Plotly
+**Engine:** Python 3.13 · pandas · scikit-learn · XGBoost · LightGBM · statsmodels · SHAP · sentence-transformers · matplotlib · seaborn · Plotly
 
-**Backend:** FastAPI · Pydantic v2 · uvicorn · WebSockets
+**Backend:** FastAPI · Pydantic v2 · uvicorn · WebSockets · SQLite (WAL)
 
-**Frontend:** Next.js 16 · TypeScript · Tailwind CSS 4 · lucide-react · next-themes · react-dropzone
+**Frontend:** Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · lucide-react · next-themes · react-dropzone
 
-**LLM:** Groq + Gemini (task-aware failover) · Ollama (local) · Anthropic Claude · OpenAI GPT
+**LLM:** Groq (Llama 3.3 70B) + Gemini (Flash 2.0) task-aware failover · Ollama · Anthropic Claude · OpenAI GPT
 
 ## License
 
