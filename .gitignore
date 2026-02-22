@@ -60,6 +60,8 @@ metadata/
 
 # Claude Code internals — dev tooling, not product
 .claude/
+.claudeignore
+DATAPILOT_DIAGNOSTIC.md
 
 # Internal planning docs
 docs/phase2.md
