@@ -64,7 +64,7 @@ const HANDLED_KEYS = new Set([
  * Handles common patterns: overview tables, quality scores,
  * warnings, correlations, and generic key-value data.
  */
-export function ResultCard({ result, skill }: ResultCardProps) {
+export function ResultCard({ result }: Omit<ResultCardProps, "skill"> & { skill?: string }) {
   const [expanded, setExpanded] = useState(false);
 
   // Skip rendering if result only has "status"
@@ -864,6 +864,7 @@ export function ResultCard({ result, skill }: ResultCardProps) {
         {/* Chart image */}
         {(chartBase64 || imageBase64) && (
           <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`data:image/png;base64,${chartBase64 || imageBase64}`}
               alt="Analysis chart"

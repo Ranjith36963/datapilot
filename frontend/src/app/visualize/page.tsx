@@ -380,6 +380,7 @@ export default function VisualizePage() {
                     {/* Chart image */}
                     {entry.imageBase64 && (
                       <div className="flex justify-center bg-white dark:bg-slate-950 p-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={`data:image/png;base64,${entry.imageBase64}`}
                           alt={entry.title || "Chart"}
