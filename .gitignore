@@ -51,6 +51,7 @@ backend/data/
 *.csv
 !examples/*.csv
 !tests/test_data/*.csv
+!tests/test_data/*.xlsx
 
 # Models and artifacts
 models/
