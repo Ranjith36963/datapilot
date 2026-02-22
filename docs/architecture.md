@@ -27,7 +27,7 @@ User
     ▼             ▼
 ┌─────────┐  ┌──────────────────┐
 │  Engine │  │  LLM Layer       │
-│  87     │  │  FailoverProvider│
+│  34     │  │  FailoverProvider│
 │  skills │  │  ├─ Groq (fast)  │
 └─────────┘  │  ├─ Gemini (safe)│
              │  ├─ Ollama       │
@@ -154,12 +154,10 @@ Triggered after fingerprinting. LLM generates analysis plan (max 5 steps) → se
 ```
 User question
     ↓
-1. Chart keywords (regex)              ← instant
-2. Query skill keywords (regex)        ← instant
-3. Semantic router (embeddings)        ← ~5ms, local
-4. Primary LLM routing (Groq)          ← ~300ms
-5. Fallback LLM routing (Gemini)       ← ~500ms
-6. Default → smart_query               ← last resort
+1. Keyword overrides (chart + query regex)  ← instant
+2. Semantic router (embeddings)             ← ~5ms, local
+3. Smart query (LLM-generated pandas)       ← ~300ms
+4. Profile fallback (profile_data)          ← last resort
 ```
 
 **Semantic router** uses sentence-transformers (all-MiniLM-L6-v2, 90MB, local). Encodes 30 skill descriptions into embeddings, matches by cosine similarity with 0.35 threshold. Degrades gracefully if not installed.

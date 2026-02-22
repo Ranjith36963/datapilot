@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "datapilot"
 version = "0.1.0"
-description = "AI-powered data analysis engine with 81+ analysis skills"
+description = "AI-powered data analysis engine with 34 analysis skills"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

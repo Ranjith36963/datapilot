@@ -76,7 +76,7 @@ export default function UploadPage() {
         </h1>
         <p className="text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
           Upload a dataset and ask questions in natural language.
-          DataPilot routes your questions to 81+ analysis skills.
+          DataPilot routes your questions to 34 analysis skills.
         </p>
       </div>
 

@@ -1,7 +1,7 @@
 """
 DataPilot — AI-powered data analysis engine.
 
-Provides 114+ analytical functions across data profiling, statistics,
+Provides 34 analytical skills across data profiling, statistics,
 machine learning, NLP, visualization, and more.
 
 All functions return JSON-serializable dicts with {"status": "success|error", ...}.

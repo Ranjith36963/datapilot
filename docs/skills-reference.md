@@ -1,6 +1,6 @@
 # Skills Reference
 
-Complete reference for DataPilot's 87 analytical skills across 6 modules: data quality, analysis, query, NLP, visualization, and export.
+Complete reference for DataPilot's 34 analytical skills across 6 modules: data quality, analysis, query, NLP, visualization, and export.
 
 ---
 

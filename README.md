@@ -2,7 +2,7 @@
 
 **AI-powered data analysis.** Upload a dataset, ask questions in natural language, get insights.
 
-DataPilot routes your questions to **87 analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by multi-LLM failover (Groq + Gemini).
+DataPilot routes your questions to **34 analysis skills** spanning statistics, machine learning, NLP, visualization, and more — powered by multi-LLM failover (Groq + Gemini).
 
 ## Screenshots
 
@@ -21,8 +21,8 @@ DataPilot routes your questions to **87 analysis skills** spanning statistics, m
 ## Features
 
 - **Natural Language Q&A** — Ask "What predicts churn?" and DataPilot picks the right analysis
-- **87 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
-- **6-Tier Smart Routing** — Chart keywords → Query keywords → Semantic embeddings → Primary LLM → Fallback LLM → Default
+- **34 Analysis Skills** — Profiling, correlations, hypothesis tests, classification, regression, clustering, time series, NLP, and more
+- **Semantic-First Routing** — Keyword overrides → Semantic embeddings → Smart query (LLM) → Profile fallback
 - **Multi-LLM Support** — Groq + Gemini (task-aware failover), Ollama, Claude, or OpenAI
 - **Interactive Chat** — Streaming responses with key points and follow-up suggestions
 - **AI Dataset Understanding** — LLM classifies domain, identifies target columns, suggests questions
@@ -56,7 +56,7 @@ export GEMINI_API_KEY=your_key_here  # Free at https://aistudio.google.com
 
 Open [http://localhost:3000](http://localhost:3000) and upload a CSV.
 
-> **Note:** DataPilot works without any API keys! The semantic router handles question routing locally. LLM keys enhance narratives and enable smart_query, but are optional.
+> **Note:** DataPilot works without API keys — keyword routing, semantic matching, and all 34 analysis skills run locally. API keys add LLM-powered narratives, smart_query routing, dataset understanding, and auto-pilot.
 
 ## Architecture
 
@@ -64,14 +64,14 @@ Open [http://localhost:3000](http://localhost:3000) and upload a CSV.
 ┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   Frontend   │────▶│   FastAPI API     │────▶│  DataPilot      │
 │   Next.js    │◀────│   17 endpoints    │◀────│  Engine         │
-│   :3000      │     │   + WebSocket     │     │  87 skills      │
+│   :3000      │     │   + WebSocket     │     │  34 skills      │
 └──────────────┘     │   :8000           │     └────────┬────────┘
                      └────────┬─────────┘              │
                               │                   ┌────▼────────────┐
-                     ┌────────▼─────────┐         │  6-Tier Router  │
+                     ┌────────▼─────────┐         │  4-Tier Router  │
                      │  Session Manager │         │  Keywords →     │
                      │  SQLite + Cache  │         │  Semantic →     │
-                     └──────────────────┘         │  LLM → Default  │
+                     └──────────────────┘         │  LLM → Profile  │
                                                   └────┬────────────┘
                                                        │
                                                   ┌────▼────────────┐
@@ -127,6 +127,10 @@ All endpoints require an `x-session-id` header (returned by upload).
 | `GET` | `/api/chart/suggest` | AI chart suggestions |
 | `POST` | `/api/export/{fmt}` | Generate PDF/DOCX/PPTX report |
 | `GET` | `/api/export/download/{file}` | Download generated report |
+| `GET` | `/api/narrative` | Get LLM narrative for results |
+| `GET` | `/api/sessions` | List all sessions |
+| `DELETE` | `/api/sessions/{id}` | Delete a session |
+| `GET` | `/health` | Health check |
 | `WS` | `/api/ws/chat` | Streaming chat |
 
 API docs at [http://localhost:8000/docs](http://localhost:8000/docs)

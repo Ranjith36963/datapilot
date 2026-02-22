@@ -91,7 +91,7 @@ app = FastAPI(
     title="DataPilot API",
     description=(
         "AI-powered data analysis API. Upload datasets, ask questions "
-        "in natural language, and get insights powered by 81+ analysis skills."
+        "in natural language, and get insights powered by 34 analysis skills."
     ),
     version="0.1.0",
     lifespan=lifespan,
